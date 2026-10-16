@@ -159,8 +159,21 @@ export class App {
       this.rebuild();
       this.view.frame(this.project);
     });
-    $('#btnClear').addEventListener('click', () => {
-      if (!confirm('Изтриване на целия проект?')) return;
+    let clearArmed = false;
+    $('#btnClear').addEventListener('click', (e) => {
+      const b = e.currentTarget as HTMLButtonElement;
+      if (!clearArmed) {
+        clearArmed = true;
+        b.textContent = 'Сигурен? Натисни пак';
+        e.stopPropagation();
+        setTimeout(() => {
+          clearArmed = false;
+          b.textContent = 'Изчисти всичко';
+        }, 3000);
+        return;
+      }
+      clearArmed = false;
+      b.textContent = 'Изчисти всичко';
       this.commit();
       this.project = emptyProject();
       this.selection = null;

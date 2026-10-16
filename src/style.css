@@ -34,7 +34,7 @@ input[type='number'], input[type='text'], select {
 label.chk { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--muted); white-space: nowrap; }
 
 #app {
-  height: 100dvh;
+  height: 100%;
   display: grid;
   grid-template-columns: var(--rail) 1fr var(--side);
   grid-template-rows: var(--topbar) 1fr var(--status);
