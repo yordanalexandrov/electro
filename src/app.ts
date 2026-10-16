@@ -17,11 +17,12 @@ import {
 } from './model';
 import { anchorPosition, cablePath, pathLength, resolvePoint, wallAnchorFromPoint, wallDir, wallNormal } from './routing';
 import { sampleProject } from './sample';
+import { Sh3dVariant, parseSh3d, projectFromVariant } from './sh3d';
 import { Hit, SceneView, Selection, ViewMode } from './scene';
 
 type Tool = 'select' | 'wall' | DeviceKind | 'cable';
 
-const STORAGE_KEY = 'electro.project.v1';
+const STORAGE_KEY = 'electro.project.v2';
 const GRID = 0.1;
 
 const $ = <T extends HTMLElement>(sel: string): T => {
@@ -52,6 +53,7 @@ export class App {
   cableType: CableType = '3x2.5';
   ortho = true;
 
+  private sh3dVariants: Sh3dVariant[] | null = null;
   private hover: THREE.Vector2 | null = null;
   private pointerDown: { x: number; y: number; t: number } | null = null;
 
@@ -151,6 +153,8 @@ export class App {
     $('#btnExport').addEventListener('click', () => this.exportJson());
     $('#btnImport').addEventListener('click', () => $<HTMLInputElement>('#fileImport').click());
     $<HTMLInputElement>('#fileImport').addEventListener('change', (e) => this.importJson(e));
+    $('#btnImportSh3d').addEventListener('click', () => $<HTMLInputElement>('#fileSh3d').click());
+    $<HTMLInputElement>('#fileSh3d').addEventListener('change', (e) => this.importSh3d(e));
     $('#btnSample').addEventListener('click', () => {
       this.commit();
       this.project = sampleProject();
@@ -549,6 +553,23 @@ export class App {
     const p = this.project;
     const h = (v: number) => v.toFixed(2);
 
+    if (!s && this.sh3dVariants) {
+      const vs = this.sh3dVariants;
+      el.innerHTML = `<h3>Sweet Home 3D — избери чертеж</h3>
+        <div class="row" style="flex-direction:column;align-items:stretch">${vs
+          .map((v, i) => `<button data-v="${i}">#${i + 1}: ${v.widthM.toFixed(1)} × ${v.depthM.toFixed(1)} м, ${v.walls.length} стени, H ${v.wallHeightM} м</button>`)
+          .join('')}<button id="vCancel">Откажи</button></div>
+        <p class="hint">Файлът съдържа няколко чертежа един до друг. Зареждат се само стените; устройствата и кабелите ги чертаеш след това.</p>`;
+      el.querySelectorAll<HTMLButtonElement>('button[data-v]').forEach((b) =>
+        b.addEventListener('click', () => this.loadProject(projectFromVariant(vs[Number(b.dataset.v)]))),
+      );
+      el.querySelector('#vCancel')!.addEventListener('click', () => {
+        this.sh3dVariants = null;
+        this.renderProps();
+      });
+      return;
+    }
+
     if (!s) {
       let opts = '';
       if (this.tool in DEVICE_INFO) {
@@ -706,6 +727,36 @@ export class App {
     a.click();
     URL.revokeObjectURL(a.href);
   }
+  private async importSh3d(e: Event): Promise<void> {
+    const input = e.target as HTMLInputElement;
+    const f = input.files?.[0];
+    if (!f) return;
+    try {
+      const variants = await parseSh3d(await f.arrayBuffer());
+      input.value = '';
+      if (variants.length === 1) return this.loadProject(projectFromVariant(variants[0]));
+      this.sh3dVariants = variants;
+      this.selection = null;
+      this.renderProps();
+      $('#side').classList.add('open');
+      this.status(`Файлът съдържа ${variants.length} чертежа — избери кой да заредиш.`);
+    } catch (err) {
+      input.value = '';
+      this.status(`Грешка при импорт: ${(err as Error).message}`);
+    }
+  }
+
+  private loadProject(p: Project): void {
+    this.commit();
+    this.project = p;
+    this.selection = null;
+    this.sh3dVariants = null;
+    this.cancelDraft();
+    this.rebuild();
+    this.view.frame(this.project);
+    this.hint();
+  }
+
   private importJson(e: Event): void {
     const input = e.target as HTMLInputElement;
     const f = input.files?.[0];
