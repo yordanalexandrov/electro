@@ -4,22 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Електро Трасе</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: drafting-table app. Thin tool rail left, big canvas, properties column right, status strip bottom.
-   On phones the rail becomes a horizontal strip and the properties column a bottom sheet. */
+/* Layout: drafting-table app. Tool rail left, 3D/plan stage centre, properties column right, status strip bottom.
+   On phones the rail becomes a horizontal strip above the status bar and properties open as a bottom sheet. */
 :root{
   --bg:#eef0f3;            /* page ground */
-  --paper:#f7f8fa;         /* canvas paper */
+  --paper:#f4f5f7;         /* stage background */
   --panel:#ffffff;         /* UI surfaces */
   --line:#cfd4dc;          /* UI borders */
-  --grid-minor:#e3e6eb;
-  --grid-major:#c9ced6;
+  --grid-minor:#e1e4e9;
+  --grid-major:#c3c9d2;
   --fg:#1d232c;
   --muted:#5f6977;
-  --wall:#3a414b;
-  --wall-sel:#f08a24;
+  --wall:#3a414b;          /* wall section / edges */
+  --wall3:#dde1e7;         /* wall faces in 3D */
   --accent:#f08a24;        /* safety orange: selection, active tool */
   --accent-ink:#1d232c;
   --ok:#2e8b57;
@@ -28,34 +27,35 @@
   --device-fill:#ffffff;
   --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  --rail:56px;
+  --rail:58px;
   --side:320px;
   --radius:6px;
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#15181d; --paper:#1b1f26; --panel:#20252d; --line:#363d48;
-    --grid-minor:#232931; --grid-major:#30373f;
-    --fg:#e6e9ee; --muted:#9aa4b2; --wall:#d6dbe3; --wall-sel:#ffa14a;
+    --bg:#15181d; --paper:#1a1e24; --panel:#20252d; --line:#363d48;
+    --grid-minor:#242a32; --grid-major:#353c46;
+    --fg:#e6e9ee; --muted:#9aa4b2; --wall:#cfd5de; --wall3:#4a525e;
     --accent:#ffa14a; --accent-ink:#15181d; --ok:#4fbf7f; --warn:#e3a04a; --bad:#e36363;
     --device-fill:#20252d; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#15181d; --paper:#1b1f26; --panel:#20252d; --line:#363d48;
-  --grid-minor:#232931; --grid-major:#30373f;
-  --fg:#e6e9ee; --muted:#9aa4b2; --wall:#d6dbe3; --wall-sel:#ffa14a;
+  --bg:#15181d; --paper:#1a1e24; --panel:#20252d; --line:#363d48;
+  --grid-minor:#242a32; --grid-major:#353c46;
+  --fg:#e6e9ee; --muted:#9aa4b2; --wall:#cfd5de; --wall3:#4a525e;
   --accent:#ffa14a; --accent-ink:#15181d; --ok:#4fbf7f; --warn:#e3a04a; --bad:#e36363;
   --device-fill:#20252d; color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%;margin:0}
-body{background:var(--bg);color:var(--fg);font:14px/1.4 var(--font);overflow:hidden;
-  padding-left:max(0px, env(safe-area-inset-left, 0px));padding-right:max(0px, env(safe-area-inset-right, 0px))}
+body{background:var(--bg);color:var(--fg);font:14px/1.4 var(--font);overflow:hidden}
 button,input,select{font:inherit;color:inherit}
 button{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:5px 9px;cursor:pointer;line-height:1.2}
 button:hover{border-color:var(--muted)}
+button:disabled{opacity:.45;cursor:default}
 button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:600}
 button.danger{color:var(--bad)}
@@ -65,62 +65,67 @@ input[type=number]{font-family:var(--mono);font-variant-numeric:tabular-nums;wid
 .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
 .muted{color:var(--muted)}
 .small{font-size:12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;flex:none}
+.seg button{border:0;border-radius:0;padding:4px 9px}
+.seg button+button{border-left:1px solid var(--line)}
 
-#app{height:100%;display:grid;grid-template-rows:auto 1fr auto;grid-template-columns:var(--rail) 1fr var(--side);
+#app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;grid-template-columns:var(--rail) minmax(0,1fr) var(--side);
   grid-template-areas:"top top top" "rail stage side" "status status status"}
-header.top{grid-area:top;display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
-header .brand{display:flex;align-items:baseline;gap:8px;margin-right:6px}
+header.top{grid-area:top;display:flex;align-items:center;gap:8px;padding-block:6px;padding-left:max(12px, env(safe-area-inset-left, 0px));padding-right:max(12px, env(safe-area-inset-right, 0px));border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+header .brand{display:flex;align-items:baseline;gap:8px;margin-right:4px}
 header .brand b{font-weight:600;letter-spacing:.01em}
 header .brand span{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 header #projName{width:12em}
 header .group{display:flex;gap:4px;align-items:center}
 header .sep{width:1px;height:22px;background:var(--line);margin:0 2px}
 header label{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px}
+header .seg button{font-weight:600}
 #btnSide{display:none}
 
-aside.rail{grid-area:rail;display:flex;flex-direction:column;gap:4px;padding:6px 5px;border-right:1px solid var(--line);background:var(--panel);overflow:auto}
-.rail button{width:46px;height:46px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative}
+aside.rail{grid-area:rail;display:flex;flex-direction:column;gap:4px;padding:6px;border-right:1px solid var(--line);background:var(--panel);overflow:auto}
+.rail button{width:46px;height:46px;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;position:relative;flex:none}
 .rail button svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .rail button .k{position:absolute;right:3px;top:2px;font:10px var(--mono);color:var(--muted)}
 .rail button.on .k{color:var(--accent-ink)}
 .rail button .t{font-size:9px;line-height:1;letter-spacing:.02em}
-.rail .gap{height:8px}
+.rail .gap{height:8px;flex:none}
 
-main.stage{grid-area:stage;position:relative;min-width:0;min-height:0;background:var(--paper)}
-canvas#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:crosshair}
+main.stage{grid-area:stage;position:relative;min-width:0;min-height:0;background:var(--paper);overflow:hidden}
+#cv,#cv3{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+#cv{cursor:crosshair}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;left:0;top:0;transform:translate(-50%,-150%);font:11px/1.2 var(--mono);color:var(--fg);background:color-mix(in srgb,var(--panel) 82%,transparent);border:1px solid var(--line);border-radius:4px;padding:1px 5px;white-space:nowrap}
+.lbl.sel{border-color:var(--accent);color:var(--fg);font-weight:500}
+#tip3{position:absolute;left:0;top:0;transform:translate(14px,-130%);font:12px/1.2 var(--font);color:var(--fg);background:var(--panel);border:1px solid var(--accent);border-radius:4px;padding:2px 7px;white-space:nowrap;pointer-events:none}
 .hud{position:absolute;left:10px;top:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:calc(100% - 20px);pointer-events:none}
 .hud>*{pointer-events:auto}
-.hud .opt{display:flex;gap:6px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:4px 8px;font-size:12px;color:var(--muted)}
+.hud .opt{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:5px 8px;font-size:12px;color:var(--muted)}
 .hud .opt input,.hud .opt select{font-size:12px;padding:2px 5px}
-.hud .seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-.hud .seg button{border:0;border-radius:0;padding:3px 8px;font-size:12px}
-.hud .seg button+button{border-left:1px solid var(--line)}
-.draftbar{position:absolute;right:10px;top:10px;display:flex;gap:6px}
-.zoombar{position:absolute;right:10px;bottom:10px;display:flex;gap:4px}
-.zoombar button{width:32px;height:32px;padding:0}
-.toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:6px 12px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+.hud .opt .seg button{font-size:12px;padding:3px 8px}
+.hud label{display:flex;gap:4px;align-items:center}
+.draftbar{position:absolute;right:10px;top:10px;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.corner{position:absolute;right:10px;bottom:10px;display:flex;gap:4px;align-items:flex-end;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100% - 20px)}
+.corner button{height:32px;min-width:32px;padding:0 8px;font-size:12px}
+.toast{position:absolute;left:50%;bottom:54px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:6px 12px;border-radius:999px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap;max-width:90%;overflow:hidden;text-overflow:ellipsis}
 .toast.show{opacity:.92}
 
-aside.side{grid-area:side;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+aside.side{grid-area:side;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0;position:relative}
 .tabs{display:flex;border-bottom:1px solid var(--line)}
 .tabs button{flex:1;border:0;border-radius:0;background:transparent;padding:9px 6px;color:var(--muted);border-bottom:2px solid transparent}
 .tabs button.on{color:var(--fg);border-bottom-color:var(--accent);background:transparent}
 .tabbody{flex:1;overflow:auto;padding:12px 14px;min-height:0}
-.tabbody h3{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
-.tabbody h3+h3{margin-top:14px}
+.tabbody h3{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
 .tabbody h4{margin:14px 0 6px;font-size:13px;font-weight:600}
 .props{display:grid;grid-template-columns:auto 1fr;gap:7px 10px;align-items:center}
 .props label{color:var(--muted);font-size:12px}
 .props .full{grid-column:1/-1}
 .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;border:1px solid var(--line);color:var(--muted)}
-.pill.ok{color:var(--ok);border-color:var(--ok)}
 .pill.warn{color:var(--warn);border-color:var(--warn)}
-.pill.bad{color:var(--bad);border-color:var(--bad)}
 .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:4px}
 table.list{width:100%;border-collapse:collapse;font-size:12px}
-table.list th{text-align:left;color:var(--muted);font-weight:500;padding:4px 4px;border-bottom:1px solid var(--line)}
-table.list td{padding:4px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+table.list th{text-align:left;color:var(--muted);font-weight:500;padding:4px;border-bottom:1px solid var(--line)}
+table.list td{padding:4px;border-bottom:1px solid var(--line);vertical-align:top}
 table.list tr.sel td{background:color-mix(in srgb,var(--accent) 18%,transparent)}
 table.list tr[data-sel]{cursor:pointer}
 table.list td.num,table.list th.num{text-align:right}
@@ -131,14 +136,15 @@ canvas#elev{width:100%;border:1px solid var(--line);border-radius:var(--radius);
 .warnlist li{display:flex;gap:6px;align-items:flex-start;font-size:12px;cursor:pointer}
 .warnlist li::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--warn);margin-top:5px;flex:none}
 .warnlist li.ok::before{background:var(--ok)}
-.help dl{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0;font-size:12px}
+.help dl{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0 0 14px;font-size:12px}
 .help dt{font-family:var(--mono);color:var(--fg);white-space:nowrap}
 .help dd{margin:0;color:var(--muted)}
 .help p{font-size:12px;color:var(--muted);margin:6px 0}
+.sec{margin-top:16px}
 
-footer.status{grid-area:status;display:flex;gap:14px;align-items:center;padding:4px 12px;border-top:1px solid var(--line);background:var(--panel);font-size:12px;color:var(--muted);min-height:30px}
+footer.status{grid-area:status;display:flex;gap:14px;align-items:center;padding-block:4px;padding-left:max(12px, env(safe-area-inset-left, 0px));padding-right:max(12px, env(safe-area-inset-right, 0px));border-top:1px solid var(--line);background:var(--panel);font-size:12px;color:var(--muted);min-height:30px}
 footer .hint{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-footer .coords{font-family:var(--mono);font-variant-numeric:tabular-nums}
+footer .coords{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 
 #modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
 #modal.show{display:flex}
@@ -148,68 +154,68 @@ footer .coords{font-family:var(--mono);font-variant-numeric:tabular-nums}
 #modal h2{margin:0;font-size:16px}
 
 @media (max-width: 860px){
-  :root{--side:0px}
-  #app{grid-template-rows:auto 1fr auto auto;grid-template-columns:1fr;
-    grid-template-areas:"top" "stage" "rail" "status"}
-  header.top{gap:6px;padding:6px 8px}
-  header .brand span{display:none}
-  header #projName{width:8em}
-  header .hideM{display:none}
+  #app{grid-template-rows:auto minmax(0,1fr) auto auto;grid-template-columns:minmax(0,1fr);grid-template-areas:"top" "stage" "rail" "status"}
+  header.top{gap:6px}
+  header .brand span,header .hideM{display:none}
+  header #projName{width:7em}
   #btnSide{display:inline-block}
-  aside.rail{flex-direction:row;border-right:0;border-top:1px solid var(--line);padding:6px 8px;overflow-x:auto}
-  .rail button{flex:none}
+  aside.rail{flex-direction:row;border-right:0;border-top:1px solid var(--line);padding:6px max(10px, env(safe-area-inset-left, 0px));overflow-x:auto}
   .rail .gap{width:8px;height:auto}
-  aside.side{position:fixed;left:0;right:0;bottom:0;top:auto;height:62%;border-left:0;border-top:1px solid var(--line);border-radius:14px 14px 0 0;
-    transform:translateY(105%);transition:transform .25s;z-index:20;box-shadow:0 -8px 30px rgba(0,0,0,.25);
-    padding-left:max(0px, env(safe-area-inset-left, 0px));padding-right:max(0px, env(safe-area-inset-right, 0px))}
+  aside.side{position:fixed;left:0;right:0;bottom:0;height:62%;border-left:0;border-top:1px solid var(--line);border-radius:14px 14px 0 0;
+    transform:translateY(105%);transition:transform .25s;z-index:20;box-shadow:0 -8px 30px rgba(0,0,0,.25);padding-bottom:env(safe-area-inset-bottom, 0px)}
   aside.side.open{transform:translateY(0)}
   .side .closer{display:block}
-  footer.status{padding-bottom:max(4px, env(safe-area-inset-bottom, 0px))}
+  .tabs{padding-right:90px}
 }
-.side .closer{display:none;position:absolute;right:10px;top:8px;padding:3px 9px}
+.side .closer{display:none;position:absolute;right:10px;top:6px;padding:3px 9px;z-index:2}
 @media (prefers-reduced-motion: reduce){ aside.side,.toast{transition:none} }
 </style>
 </head>
 <body>
 <div id="app">
   <header class="top">
-    <div class="brand"><b>Електро Трасе</b><span>POC · план на ел. инсталация</span></div>
+    <div class="brand"><b>Електро Трасе</b><span>POC · ел. инсталация в 3D</span></div>
+    <div class="seg" role="group" aria-label="Изглед">
+      <button id="vm3" title="3D изглед (3)">3D</button><button id="vm2" title="План отгоре (2)">План</button>
+    </div>
     <input type="text" id="projName" aria-label="Име на проекта" placeholder="Име на проекта">
     <div class="sep hideM"></div>
     <div class="group">
-      <button id="btnNew" title="Нов празен проект">Ново</button>
-      <button id="btnSample" title="Зареди примерния апартамент">Пример</button>
-      <button id="btnImport" title="Отвори JSON">Отвори</button>
-      <button id="btnExport" title="Запази като JSON">Запази</button>
-      <button id="btnPng" title="Снимка на плана (PNG)">PNG</button>
+      <button id="btnNew" class="hideM" title="Нов празен проект">Ново</button>
+      <button id="btnSample" class="hideM" title="Зареди примерния апартамент">Пример</button>
+      <button id="btnImport" class="hideM" title="Отвори JSON">Отвори</button>
+      <button id="btnExport" class="hideM" title="Запази като JSON">Запази</button>
+      <button id="btnPng" class="hideM" title="Снимка на изгледа (PNG)">PNG</button>
     </div>
     <div class="sep hideM"></div>
     <div class="group">
-      <button id="btnUndo" title="Отмени (Ctrl+Z)">↶</button>
-      <button id="btnRedo" title="Повтори (Ctrl+Y)">↷</button>
-      <button id="btnFit" title="Побери в екрана (F)">Побери</button>
-      <button id="btnGrid" class="on hideM" title="Решетка (G)">Решетка</button>
+      <button id="btnUndo" title="Отмени (Ctrl+Z)" aria-label="Отмени">↶</button>
+      <button id="btnRedo" title="Повтори (Ctrl+Y)" aria-label="Повтори">↷</button>
       <button id="btnOrtho" class="on hideM" title="Ортогонално чертане (O)">Орто</button>
     </div>
-    <div class="sep hideM"></div>
-    <label class="hideM">Таван <input type="number" id="ceilH" step="0.05" min="2" max="5"> м</label>
+    <label class="hideM">Таван <input type="number" id="ceilH" step="5" min="200" max="500"> см</label>
     <span style="flex:1"></span>
     <button id="btnSide">Свойства</button>
   </header>
 
   <aside class="rail" id="rail"></aside>
 
-  <main class="stage">
+  <main class="stage" id="stage">
     <canvas id="cv"></canvas>
+    <div id="labels"><div id="tip3" hidden></div></div>
     <div class="hud" id="hud"></div>
     <div class="draftbar" id="draftbar" hidden>
       <button id="btnFinish" class="primary">Готово ⏎</button>
       <button id="btnUndoPt" title="Махни последната точка">← точка</button>
       <button id="btnCancel">Отказ Esc</button>
     </div>
-    <div class="zoombar">
-      <button id="zoomIn" title="Увеличи (+)">+</button>
-      <button id="zoomOut" title="Намали (−)">−</button>
+    <div class="corner">
+      <button id="btnTop" title="Поглед отгоре (Shift+F)">Отгоре</button>
+      <button id="btnFit" title="Побери в екрана (F)">Побери</button>
+      <button id="btnXray" title="Прозрачни стени (X)">Прозрачни</button>
+      <button id="btnLbl" class="on" title="Етикети (N)">Етикети</button>
+      <button id="zoomOut" title="Намали (−)" aria-label="Намали">−</button>
+      <button id="zoomIn" title="Увеличи (+)" aria-label="Увеличи">+</button>
     </div>
     <div class="toast" id="toast"></div>
   </main>
@@ -224,64 +230,76 @@ footer .coords{font-family:var(--mono);font-variant-numeric:tabular-nums}
     <div class="tabbody" id="tab-props"></div>
     <div class="tabbody" id="tab-list" hidden></div>
     <div class="tabbody help" id="tab-help" hidden>
-      <h3>Мишка и клавиатура</h3>
+      <h3>Клавиатура</h3>
       <dl>
-        <dt>V W T B K S L C</dt><dd>Инструменти: избор, стена, табло, кутия, контакт, ключ, лампа, кабел</dd>
-        <dt>Клик</dt><dd>Поставя точка / елемент; с инструмента „избор“ маркира</dd>
-        <dt>Влачене</dt><dd>Мести избран елемент, крайна точка на стена или точка от кабел. Върху празно място мести плана</dd>
-        <dt>Enter / 2× клик</dt><dd>Завършва стената или кабела</dd>
-        <dt>Esc</dt><dd>Отказ от чертане / сваля избора</dd>
+        <dt>V W T B K S L C</dt><dd>Избор, стена, табло, кутия, контакт, ключ, лампа, кабел</dd>
+        <dt>3 / 2</dt><dd>3D изглед / план отгоре</dd>
+        <dt>Enter</dt><dd>Завършва стената или кабела</dd>
+        <dt>Esc</dt><dd>Отказ от чертане, после сваля избора</dd>
         <dt>Backspace</dt><dd>Маха последната точка при чертане</dd>
-        <dt>Delete</dt><dd>Изтрива избрания елемент</dd>
+        <dt>Delete</dt><dd>Изтрива маркирания елемент</dd>
+        <dt>Tab</dt><dd>При кабел: превключва „по стена“ и „по тавана“</dd>
         <dt>Ctrl+Z / Ctrl+Y</dt><dd>Отмени / повтори</dd>
-        <dt>Колелце, + −</dt><dd>Мащаб. Среден бутон или Space+влачене мести плана</dd>
-        <dt>G O F</dt><dd>Решетка, орто режим, побери в екрана</dd>
+        <dt>← → ↑ ↓</dt><dd>3D: върти камерата. План: мести</dd>
+        <dt>F, Shift+F</dt><dd>Побери в екрана, поглед отгоре</dd>
+        <dt>X N O G</dt><dd>Прозрачни стени, етикети, орто, решетка</dd>
+      </dl>
+      <h3>Мишка в 3D</h3>
+      <dl>
+        <dt>Клик</dt><dd>Поставя точка или елемент. С „Избор“ маркира</dd>
+        <dt>Ляв бутон + влачене</dt><dd>Върти камерата. Маркиран елемент или точка се влачи</dd>
+        <dt>Десен бутон</dt><dd>Мести изгледа</dd>
+        <dt>Колелце</dt><dd>Приближава</dd>
       </dl>
       <h3>Таблет и телефон</h3>
       <dl>
-        <dt>Докосване</dt><dd>Поставя точка / елемент / маркира</dd>
-        <dt>Влачене с 1 пръст</dt><dd>Мести избран елемент; върху празно място мести плана</dd>
-        <dt>2 пръста</dt><dd>Мащаб и местене</dd>
-        <dt>Бутон „Готово“</dt><dd>Завършва стена или кабел (появява се горе вдясно)</dd>
+        <dt>Докосване</dt><dd>Поставя точка или елемент, маркира</dd>
+        <dt>1 пръст</dt><dd>Върти камерата. Маркиран елемент се влачи</dd>
+        <dt>2 пръста</dt><dd>Приближава и мести</dd>
+        <dt>„Готово“</dt><dd>Завършва стена или кабел (горе вдясно)</dd>
       </dl>
       <h3>Как се чертае</h3>
-      <p>1. Стени: клик по ъглите на помещенията. Орто режимът държи стените прави. Кликът върху началната точка затваря контура.</p>
-      <p>2. Табло, контакти и ключове се поставят върху стена. Височината (см от пода) се задава преди поставяне или след това в „Свойства“.</p>
-      <p>3. Разклонителна кутия може да е на стена или на тавана. Лампите са на тавана.</p>
-      <p>4. Кабел: започнете от табло или кутия. Всяка следваща точка е или по стена (на зададена височина), или по тавана. Кликът върху елемент (контакт, кутия, лампа) завършва кабела.</p>
-      <p>5. От кутия тръгват колкото искате кабели към други кутии и крайни точки. Дължината се смята с вертикалните спускания.</p>
-      <p>Проектът се пази автоматично в браузъра. „Запази“ дава JSON, който може да се отвори после.</p>
+      <p>1. Стени: с инструмента „Стена“ кликнете ъглите по пода. „Отгоре“ и „План“ улесняват това. Клик върху началната точка затваря контура.</p>
+      <p>2. Табло, контакт и ключ се слагат с клик върху лицето на стената, на зададената височина. С отметка „по клика“ височината е там, където кликнете.</p>
+      <p>3. Разклонителна кутия: на тавана или на стена. Лампата е на тавана.</p>
+      <p>4. Кабел: започнете от табло или кутия. В режим „По стена“ кликът по стена дава точка на тази височина. В режим „По тавана“ кликът дава точка на тавана. Клик върху елемент завършва кабела.</p>
+      <p>5. Между точки на различна височина кабелът минава вертикално, после хоризонтално. Дължината включва спусканията.</p>
+      <p>Проектът се пази автоматично в този браузър. „Запази“ дава JSON, който може да се отвори после.</p>
     </div>
   </aside>
 
   <footer class="status">
     <div class="hint" id="hint"></div>
     <div class="coords" id="coords"></div>
-    <div class="num" id="zoomLbl"></div>
   </footer>
 </div>
 
 <div id="modal"><div class="box" id="modalBox"></div></div>
 
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 <script>
 'use strict';
-// ---------- constants ----------
+// =====================================================================
+// constants
+// =====================================================================
 const CEIL_EPS = 0.015;
-const GRID = 0.1;             // m, snap step
+const GRID = 0.1;             // m, plan snap step
+const ZSTEP = 0.05;           // m, height snap step
 const WALL_T = 0.12;          // m, default wall thickness
 const TYPES = {
-  panel: {label:'Табло',               short:'Т',  z:1.5,  place:'wall',    key:'T'},
-  box:   {label:'Разклонителна кутия', short:'РК', z:2.3,  place:'any',     key:'B'},
-  socket:{label:'Контакт',             short:'К',  z:0.3,  place:'wall',    key:'K'},
-  switch:{label:'Ключ',                short:'Кл', z:1.1,  place:'wall',    key:'S'},
-  light: {label:'Лампа',               short:'Л',  z:null, place:'ceiling', key:'L'},
+  panel: {label:'Табло',               short:'Т',  z:1.5,  place:'wall'},
+  box:   {label:'Разклонителна кутия', short:'РК', z:2.3,  place:'any'},
+  socket:{label:'Контакт',             short:'К',  z:0.3,  place:'wall'},
+  switch:{label:'Ключ',                short:'Кл', z:1.1,  place:'wall'},
+  light: {label:'Лампа',               short:'Л',  z:null, place:'ceiling'},
 };
 const CABLE_TYPES = [
-  {id:'3x1.5', label:'3×1,5 мм² · осветление',        color:'#d98a2b'},
-  {id:'3x2.5', label:'3×2,5 мм² · контакти',          color:'#2f7fd9'},
-  {id:'3x4',   label:'3×4 мм² · бойлер / климатик',   color:'#8e44c9'},
-  {id:'3x6',   label:'3×6 мм² · готварска печка',     color:'#c23b5b'},
-  {id:'5x2.5', label:'5×2,5 мм² · трифазен',          color:'#2a9d7b'},
+  {id:'3x1.5', label:'3×1,5 мм² · осветление',      color:'#d98a2b'},
+  {id:'3x2.5', label:'3×2,5 мм² · контакти',        color:'#2f7fd9'},
+  {id:'3x4',   label:'3×4 мм² · бойлер / климатик', color:'#8e44c9'},
+  {id:'3x6',   label:'3×6 мм² · готварска печка',   color:'#c23b5b'},
+  {id:'5x2.5', label:'5×2,5 мм² · трифазен',        color:'#2a9d7b'},
 ];
 const TOOLS = [
   {id:'select', label:'Избор',  key:'V', icon:'M6 4l12 8-6 1-3 6z'},
@@ -294,25 +312,31 @@ const TOOLS = [
   {id:'cable',  label:'Кабел',  key:'C', icon:'M4 18h5l3-12 3 12h5'},
   {id:'pan',    label:'Ръка',   key:'H', icon:'M8 13V6a1.5 1.5 0 0 1 3 0v6m0-7a1.5 1.5 0 0 1 3 0v7m0-5a1.5 1.5 0 0 1 3 0v8a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-3-5a1.5 1.5 0 0 1 2.6-1.5L8 13'},
 ];
-const LS_KEY = 'electro.poc.v1';
+const LS_KEY = 'electro.poc.v2';
+const LS_PREF = 'electro.poc.pref';
 
-// ---------- state ----------
+// =====================================================================
+// state
+// =====================================================================
 let S = emptyState();
-let view = {s:80, ox:60, oy:60};   // px per meter, offsets
+let view = {s:80, ox:60, oy:60};   // 2D plan: px per metre and offsets
+let viewMode = '3d';
 let tool = 'select';
 let sel = null;                    // {kind:'wall'|'device'|'cable', id}
 let draft = null;                  // {type:'wall'|'cable', pts:[]}
-let hover = null;                  // {wx,wy,snap}
-let showGrid = true, ortho = true;
+let hover = null;                  // 2D: {wx,wy,snap}
+let showGrid = true, ortho = true, xray = false, showLabels = true;
 let cableMode = 'wall';            // 'wall' | 'ceiling'
-let cableH = 2.3;                  // m, height of wall-run cable points
+let cableH = 2.3;                  // m, fixed height for wall-run cable points
+let fixCabH = false;               // 3D: use cableH instead of the clicked height
+let fixDevH = true;                // 3D: use preset device heights instead of the clicked height
 let cableType = '3x2.5';
 let placeH = {panel:1.5, box:2.3, socket:0.3, switch:1.1};
-let boxPlace = 'auto';             // auto | ceiling
+let boxPlace = 'ceiling';          // 'ceiling' | 'wall'
 let undoStack = [], redoStack = [];
-let spaceDown = false;
+let spaceDown = false, isTouchOnly = false;
 
-function emptyState(){ return {v:1, name:'Нов проект', H:2.6, walls:[], devices:[], cables:[], seq:{}}; }
+function emptyState(){ return {v:2, name:'Нов проект', H:2.6, walls:[], devices:[], cables:[], seq:{}}; }
 let _uid = 0;
 function uid(p){ _uid++; return p + Date.now().toString(36).slice(-4) + _uid.toString(36); }
 function nextName(kind, short){ S.seq[kind] = (S.seq[kind]||0)+1; return short + S.seq[kind]; }
@@ -321,20 +345,25 @@ const devById = id => S.devices.find(d=>d.id===id);
 const cableById = id => S.cables.find(c=>c.id===id);
 const fmt = (v,d=2) => (Math.round(v*10**d)/10**d).toFixed(d).replace('.',',');
 const cm = v => Math.round(v*100);
+const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+const $ = id => document.getElementById(id);
 
-// ---------- geometry ----------
+// =====================================================================
+// geometry (plan coordinates: x right, y down, z = height from floor)
+// =====================================================================
 function wallLen(w){ return Math.hypot(w.x2-w.x1, w.y2-w.y1); }
 function wallPt(w,t){ return {x:w.x1+(w.x2-w.x1)*t, y:w.y1+(w.y2-w.y1)*t}; }
+function wallN(w){ const L=wallLen(w)||1; return {x:-(w.y2-w.y1)/L, y:(w.x2-w.x1)/L}; }
+function sideRaw(w,x,y){ const L=wallLen(w)||1; return ((w.x2-w.x1)*(y-w.y1)-(w.y2-w.y1)*(x-w.x1))/L; }
+function sideOf(w,x,y){ return sideRaw(w,x,y)<0?-1:1; }
+function wallOff(w,t,side,extra){ const p=wallPt(w,t), n=wallN(w), k=(side||1)*((w.th||WALL_T)/2+extra); return {x:p.x+n.x*k, y:p.y+n.y*k}; }
 function projWall(w,x,y){
   const dx=w.x2-w.x1, dy=w.y2-w.y1, L2=dx*dx+dy*dy;
-  let t = L2? ((x-w.x1)*dx+(y-w.y1)*dy)/L2 : 0; t=Math.max(0,Math.min(1,t));
+  let t = L2? ((x-w.x1)*dx+(y-w.y1)*dy)/L2 : 0; t=clamp(t,0,1);
   const p=wallPt(w,t); return {t, x:p.x, y:p.y, d:Math.hypot(x-p.x,y-p.y)};
 }
 function nearestWall(x,y,max){
   let best=null; for(const w of S.walls){ const p=projWall(w,x,y); if(p.d<=max && (!best||p.d<best.d)) best={wall:w,...p}; } return best;
-}
-function nearestDevice(x,y,max){
-  let best=null; for(const d of S.devices){ const p=devPos(d); const dd=Math.hypot(p.x-x,p.y-y); if(dd<=max&&(!best||dd<best.d)) best={dev:d,d:dd}; } return best;
 }
 function snapGrid(v){ return Math.round(v/GRID)*GRID; }
 function devPos(d){
@@ -346,112 +375,117 @@ function ptPos(p){
   if(p.kind==='wall'){ const w=wallById(p.wallId); if(w){ const q=wallPt(w,p.t); return {x:q.x,y:q.y,z:Math.min(p.z,S.H)}; } return {x:0,y:0,z:0}; }
   return {x:p.x,y:p.y,z:S.H};
 }
+// 2D drawing positions: wall items sit on the face of the wall they are mounted on
+function devRP(d){ const p=devPos(d); if(d.wallId){ const w=wallById(d.wallId); if(w){ const o=wallOff(w,d.t,d.side,0.11); return {x:o.x,y:o.y,z:p.z}; } } return p; }
+function ptRP(p){
+  if(p.kind==='device'){ const d=devById(p.deviceId); return d?devRP(d):{x:0,y:0,z:0}; }
+  if(p.kind==='wall'){ const w=wallById(p.wallId); if(w){ const o=wallOff(w,p.t,p.side,0.03); return {x:o.x,y:o.y,z:Math.min(p.z,S.H)}; } }
+  return ptPos(p);
+}
 function isCeil(z){ return z>=S.H-CEIL_EPS; }
 function cableLength(c){
   let L=0; for(let i=1;i<c.points.length;i++){ const a=ptPos(c.points[i-1]), b=ptPos(c.points[i]); L+=Math.hypot(b.x-a.x,b.y-a.y)+Math.abs(b.z-a.z); } return L;
 }
-function distSeg(px,py,ax,ay,bx,by){ const dx=bx-ax,dy=by-ay,L2=dx*dx+dy*dy; let t=L2?((px-ax)*dx+(py-ay)*dy)/L2:0; t=Math.max(0,Math.min(1,t)); return Math.hypot(px-(ax+dx*t),py-(ay+dy*t)); }
-
-// ---------- view transforms ----------
-const cv=document.getElementById('cv'); const ctx=cv.getContext('2d');
-function toScreen(x,y){ return {x:view.ox+x*view.s, y:view.oy+y*view.s}; }
-function toWorld(sx,sy){ return {x:(sx-view.ox)/view.s, y:(sy-view.oy)/view.s}; }
-function evPos(e){ const r=cv.getBoundingClientRect(); return {sx:e.clientX-r.left, sy:e.clientY-r.top}; }
-function thr(){ return 12/view.s; }  // world hit threshold (~12px)
-function zoomAt(f,sx,sy){ const w=toWorld(sx,sy); view.s=Math.max(15,Math.min(600,view.s*f)); view.ox=sx-w.x*view.s; view.oy=sy-w.y*view.s; render(); }
-function fitView(){
+function distSeg(px,py,ax,ay,bx,by){ const dx=bx-ax,dy=by-ay,L2=dx*dx+dy*dy; let t=L2?((px-ax)*dx+(py-ay)*dy)/L2:0; t=clamp(t,0,1); return Math.hypot(px-(ax+dx*t),py-(ay+dy*t)); }
+function bounds(){
   const pts=[]; S.walls.forEach(w=>{pts.push([w.x1,w.y1],[w.x2,w.y2]);}); S.devices.forEach(d=>{const p=devPos(d);pts.push([p.x,p.y]);});
-  const W=cv.clientWidth, Hh=cv.clientHeight;
-  if(!pts.length){ view.s=80; view.ox=40; view.oy=40; render(); return; }
+  if(!pts.length) return {minx:0,miny:0,maxx:6,maxy:4,empty:true};
   let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity; pts.forEach(([x,y])=>{minx=Math.min(minx,x);maxx=Math.max(maxx,x);miny=Math.min(miny,y);maxy=Math.max(maxy,y);});
-  const bw=Math.max(1,maxx-minx), bh=Math.max(1,maxy-miny);
-  view.s=Math.max(15,Math.min(600,Math.min((W-80)/bw,(Hh-80)/bh)));
-  view.ox=(W-bw*view.s)/2-minx*view.s; view.oy=(Hh-bh*view.s)/2-miny*view.s; render();
+  return {minx,miny,maxx,maxy};
 }
+function wallPtLabel(w,z){ return isCeil(z)?'таван до стена '+w.name:'стена '+w.name+' · h '+cm(z)+' см'; }
 
-// ---------- history & persistence ----------
+// =====================================================================
+// history & persistence
+// =====================================================================
 function pushHistory(){ undoStack.push(JSON.stringify(S)); if(undoStack.length>100) undoStack.shift(); redoStack.length=0; }
-function undo(){ if(!undoStack.length) return; redoStack.push(JSON.stringify(S)); S=JSON.parse(undoStack.pop()); draft=null; sel=null; commit(false); toast('Отменено'); }
-function redo(){ if(!redoStack.length) return; undoStack.push(JSON.stringify(S)); S=JSON.parse(redoStack.pop()); draft=null; sel=null; commit(false); toast('Повторено'); }
+function undo(){ if(!undoStack.length) return; redoStack.push(JSON.stringify(S)); S=JSON.parse(undoStack.pop()); draft=null; sel=null; commit(); toast('Отменено'); }
+function redo(){ if(!redoStack.length) return; undoStack.push(JSON.stringify(S)); S=JSON.parse(redoStack.pop()); draft=null; sel=null; commit(); toast('Повторено'); }
 let saveT=null;
-function commit(keepPanel){ clearTimeout(saveT); saveT=setTimeout(()=>{ try{ localStorage.setItem(LS_KEY, JSON.stringify(S)); }catch(e){} },300); render(); renderSide(); updateUI(); }
-function load(){ try{ const j=localStorage.getItem(LS_KEY); if(j){ S=JSON.parse(j); return true; } }catch(e){} return false; }
+function commit(){
+  clearTimeout(saveT); saveT=setTimeout(()=>{ try{ localStorage.setItem(LS_KEY, JSON.stringify(S)); }catch(e){} },300);
+  rebuild(); renderSide(); updateUI();
+}
+function load(){ try{ const j=localStorage.getItem(LS_KEY); if(j){ const o=JSON.parse(j); if(o&&Array.isArray(o.walls)){ S=Object.assign(emptyState(),o); return true; } } }catch(e){} return false; }
+function savePref(){ try{ localStorage.setItem(LS_PREF, JSON.stringify({viewMode,xray,showLabels})); }catch(e){} }
+function loadPref(){ try{ const p=JSON.parse(localStorage.getItem(LS_PREF)||'null'); if(p){ viewMode=p.viewMode||viewMode; xray=!!p.xray; showLabels=p.showLabels!==false; } }catch(e){} }
 
-// ---------- snapping ----------
+// drawing dispatch: rebuild() after the model changes, render() for transient things (hover, draft)
+function rebuild(){ if(viewMode==='3d'&&T3.ok) rebuild3D(); render(); }
+function render(){ if(viewMode==='3d'&&T3.ok) overlay3D(); else draw2D(); }
+
+// =====================================================================
+// shared snapping helpers
+// =====================================================================
+function lastDraftPt(){ return draft&&draft.type==='cable'&&draft.pts.length? draft.pts[draft.pts.length-1] : null; }
+function orthoCeil(x,y){
+  let X=snapGrid(x), Y=snapGrid(y); const lp=lastDraftPt();
+  if(ortho&&lp){ const q=ptPos(lp); if(Math.abs(x-q.x)<Math.abs(y-q.y)) X=q.x; else Y=q.y; }
+  return {x:X,y:Y};
+}
+function snapZ(z){
+  z=Math.round(z/ZSTEP)*ZSTEP; const lp=lastDraftPt();
+  if(lp){ const pz=ptPos(lp).z; if(Math.abs(z-pz)<0.1) z=pz; }
+  if(z>S.H-0.1) z=S.H; return clamp(z,0,S.H);
+}
+function cleanPt(p){
+  if(p.kind==='device') return {kind:'device',deviceId:p.deviceId};
+  if(p.kind==='wall') return {kind:'wall',wallId:p.wallId,t:p.t,z:p.z,side:p.side||1};
+  return {kind:'ceiling',x:p.x,y:p.y};
+}
+function samePt(a,b){ const p=ptPos(a),q=ptPos(b); return Math.hypot(p.x-q.x,p.y-q.y)<1e-6&&Math.abs(p.z-q.z)<1e-6; }
+
+// 2D snapping
+function thr(){ return 12/view.s; }
+function nearestDevice2(x,y,max){
+  let best=null; for(const d of S.devices){ const p=devRP(d); const dd=Math.hypot(p.x-x,p.y-y); if(dd<=max&&(!best||dd<best.d)) best={dev:d,d:dd}; } return best;
+}
 function snapWallPoint(wx,wy){
-  const t=thr();
-  // existing wall endpoints
-  let best=null;
+  const t=thr(); let best=null;
   for(const w of S.walls){ for(const [x,y] of [[w.x1,w.y1],[w.x2,w.y2]]){ const d=Math.hypot(x-wx,y-wy); if(d<=t*1.3&&(!best||d<best.d)) best={x,y,d,label:'ъгъл'}; } }
   if(draft&&draft.type==='wall'&&draft.pts.length>2){ const f=draft.pts[0]; const d=Math.hypot(f.x-wx,f.y-wy); if(d<=t*1.5&&(!best||d<best.d)) best={x:f.x,y:f.y,d,label:'затваря контура',close:true}; }
   if(best) return best;
-  // on an existing wall line (T-junction)
-  const nw=nearestWall(wx,wy,t); if(nw) return {x:nw.x,y:nw.y,label:'върху стена'};
-  // ortho relative to previous point
+  const nw=nearestWall(wx,wy,t); if(nw) return {x:nw.x,y:nw.y,label:'върху стена '+nw.wall.name};
   let x=wx,y=wy;
   if(ortho&&draft&&draft.type==='wall'&&draft.pts.length){ const p=draft.pts[draft.pts.length-1]; if(Math.abs(wx-p.x)>Math.abs(wy-p.y)) y=p.y; else x=p.x; }
   return {x:snapGrid(x),y:snapGrid(y),label:''};
 }
 function snapDevicePlace(kind,wx,wy){
   const T=TYPES[kind], t=thr()*1.6;
-  const nw=nearestWall(wx,wy,t);
-  const wantWall = T.place==='wall' || (T.place==='any' && boxPlace==='auto' && nw);
+  const wantWall = T.place==='wall' || (T.place==='any' && boxPlace==='wall');
   if(wantWall){
+    const nw=nearestWall(wx,wy,t);
     if(!nw) return {ok:false,label:'Поставете върху стена'};
-    return {ok:true,wallId:nw.wall.id,t:nw.t,x:nw.x,y:nw.y,z:placeH[kind]??T.z,label:nw.wall.name+' · h '+cm(placeH[kind]??T.z)+' см'};
+    const z=placeH[kind]??T.z;
+    return {ok:true,wallId:nw.wall.id,t:nw.t,side:sideOf(nw.wall,wx,wy),x:nw.x,y:nw.y,z,label:'стена '+nw.wall.name+' · h '+cm(z)+' см'};
   }
   return {ok:true,wallId:null,x:snapGrid(wx),y:snapGrid(wy),z:null,label:'таван'};
 }
 function snapCable(wx,wy){
   const t=thr();
-  const nd=nearestDevice(wx,wy,t*1.6);
+  const nd=nearestDevice2(wx,wy,t*1.6);
   if(nd) return {kind:'device',deviceId:nd.dev.id,label:TYPES[nd.dev.type].label+' '+nd.dev.name};
   const nw=nearestWall(wx,wy,t*1.3);
-  if(nw){
-    const z = cableMode==='ceiling'? S.H : Math.min(cableH,S.H);
-    return {kind:'wall',wallId:nw.wall.id,t:nw.t,z,label:(isCeil(z)?'таван при ':'стена ')+nw.wall.name+(isCeil(z)?'':' · h '+cm(z)+' см')};
-  }
-  return {kind:'ceiling',x:snapGrid(wx),y:snapGrid(wy),label:'таван'};
-}
-function samePt(a,b){ const p=ptPos(a),q=ptPos(b); return Math.hypot(p.x-q.x,p.y-q.y)<1e-6&&Math.abs(p.z-q.z)<1e-6; }
-
-// ---------- hit testing ----------
-function hitTest(wx,wy){
-  const t=thr();
-  const nd=nearestDevice(wx,wy,t*1.6); if(nd) return {kind:'device',id:nd.dev.id};
-  let best=null;
-  for(const c of S.cables){ const P=c.points.map(ptPos); for(let i=1;i<P.length;i++){ const d=distSeg(wx,wy,P[i-1].x,P[i-1].y,P[i].x,P[i].y); if(d<=t&&(!best||d<best.d)) best={kind:'cable',id:c.id,d}; } }
-  if(best) return {kind:best.kind,id:best.id};
-  const nw=nearestWall(wx,wy,t*1.2); if(nw) return {kind:'wall',id:nw.wall.id};
-  return null;
-}
-function pickDragTarget(wx,wy){
-  const t=thr()*1.4;
-  if(sel&&sel.kind==='wall'){ const w=wallById(sel.id); if(w){ if(Math.hypot(w.x1-wx,w.y1-wy)<=t) return {kind:'wallEnd',id:w.id,end:1}; if(Math.hypot(w.x2-wx,w.y2-wy)<=t) return {kind:'wallEnd',id:w.id,end:2}; } }
-  if(sel&&sel.kind==='cable'){ const c=cableById(sel.id); if(c){ for(let i=0;i<c.points.length;i++){ const p=c.points[i]; if(p.kind==='device') continue; const q=ptPos(p); if(Math.hypot(q.x-wx,q.y-wy)<=t) return {kind:'cablePt',id:c.id,idx:i}; } } }
-  const h=hitTest(wx,wy);
-  if(h&&h.kind==='device') return {kind:'device',id:h.id};
-  if(h&&h.kind==='wall'&&sel&&sel.kind==='wall'&&sel.id===h.id){ const w=wallById(h.id); return {kind:'wallMove',id:w.id,x1:w.x1,y1:w.y1,x2:w.x2,y2:w.y2}; }
-  return null;
+  if(nw){ const z=cableMode==='ceiling'?S.H:Math.min(cableH,S.H); return {kind:'wall',wallId:nw.wall.id,t:nw.t,z,side:sideOf(nw.wall,wx,wy),label:wallPtLabel(nw.wall,z)}; }
+  const c=orthoCeil(wx,wy); return {kind:'ceiling',x:c.x,y:c.y,label:'таван'};
 }
 
-// ---------- mutations ----------
+// =====================================================================
+// mutations
+// =====================================================================
 function addWalls(pts){
-  pushHistory();
-  let last=null;
+  pushHistory(); let last=null;
   for(let i=1;i<pts.length;i++){ const a=pts[i-1],b=pts[i]; if(Math.hypot(a.x-b.x,a.y-b.y)<0.05) continue; const w={id:uid('w'),name:nextName('wall','С'),x1:a.x,y1:a.y,x2:b.x,y2:b.y,th:WALL_T}; S.walls.push(w); last=w; }
   if(last) sel={kind:'wall',id:last.id};
   commit();
 }
 function addDevice(kind,snap){
-  pushHistory();
-  const T=TYPES[kind];
-  const d={id:uid('d'),type:kind,name:nextName(kind,T.short),wallId:snap.wallId,t:snap.t,x:snap.x,y:snap.y,z:snap.z};
+  pushHistory(); const T=TYPES[kind];
+  const d={id:uid('d'),type:kind,name:nextName(kind,T.short),wallId:snap.wallId,t:snap.t,side:snap.side||1,x:snap.x,y:snap.y,z:snap.z};
   S.devices.push(d); sel={kind:'device',id:d.id}; commit(); return d;
 }
 function addCable(pts){
-  pushHistory();
-  const ct=CABLE_TYPES.find(c=>c.id===cableType)||CABLE_TYPES[0];
+  pushHistory(); const ct=CABLE_TYPES.find(c=>c.id===cableType)||CABLE_TYPES[0];
   const c={id:uid('c'),name:nextName('cable','Каб'),type:ct.id,color:ct.color,points:pts};
   S.cables.push(c); sel={kind:'cable',id:c.id}; commit(); return c;
 }
@@ -469,317 +503,188 @@ function deleteSelected(){
   S.cables=S.cables.filter(c=>c.points.length>=2);
   sel=null; commit(); toast('Изтрито');
 }
-function moveDevice(d,wx,wy){
-  const snap=snapDevicePlace(d.type,wx,wy);
-  if(!snap.ok) return;
-  d.wallId=snap.wallId; d.t=snap.t; d.x=snap.x; d.y=snap.y;
-  if(d.wallId&&(d.z==null||isCeil(d.z))) d.z=TYPES[d.type].z??cableH;
-  if(!d.wallId) d.z=null;
+function moveDevice2(d,wx,wy){
+  if(d.wallId||TYPES[d.type].place==='wall'){        // wall-mounted items slide along walls and keep their height
+    const nw=nearestWall(wx,wy,thr()*1.6); if(!nw) return;
+    d.wallId=nw.wall.id; d.t=nw.t; d.side=sideOf(nw.wall,wx,wy); d.x=nw.x; d.y=nw.y;
+  } else { d.x=snapGrid(wx); d.y=snapGrid(wy); }
 }
 function cableDevices(c){ return c.points.filter(p=>p.kind==='device').map(p=>devById(p.deviceId)).filter(Boolean); }
 function deviceCables(d){ return S.cables.filter(c=>c.points.some(p=>p.kind==='device'&&p.deviceId===d.id)); }
 
-// ---------- validation ----------
+// =====================================================================
+// validation
+// =====================================================================
 function validate(){
   const out=[];
   if(!S.devices.some(d=>d.type==='panel')) out.push({msg:'Няма електрическо табло.',sel:null});
   for(const c of S.cables){
     const a=c.points[0], b=c.points[c.points.length-1];
-    if(a.kind!=='device'||b.kind!=='device') out.push({msg:`${c.name}: има отворен край (не стига до елемент).`,sel:{kind:'cable',id:c.id}});
+    if(a.kind!=='device'||b.kind!=='device') out.push({msg:`${c.name}: има отворен край, не стига до елемент.`,sel:{kind:'cable',id:c.id}});
     else { const da=devById(a.deviceId), db=devById(b.deviceId); if(da&&db&&!['panel','box'].includes(da.type)&&!['panel','box'].includes(db.type)) out.push({msg:`${c.name}: нито единият край не е табло или кутия.`,sel:{kind:'cable',id:c.id}}); }
   }
   for(const d of S.devices){
     const n=deviceCables(d).length;
-    if(n===0&&d.type!=='panel') out.push({msg:`${TYPES[d.type].label} ${d.name} не е свързан(а) с кабел.`,sel:{kind:'device',id:d.id}});
+    if(n===0&&d.type!=='panel') out.push({msg:`${TYPES[d.type].label} ${d.name} не е свързан с кабел.`,sel:{kind:'device',id:d.id}});
     if(d.type==='box'&&n===1) out.push({msg:`Кутия ${d.name} има само един кабел.`,sel:{kind:'device',id:d.id}});
     if(d.type==='panel'&&n===0&&S.cables.length) out.push({msg:`Табло ${d.name} няма изходящи кабели.`,sel:{kind:'device',id:d.id}});
   }
   return out;
 }
 
-// ---------- rendering ----------
+// =====================================================================
+// theme colours
+// =====================================================================
 function css(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 let C={};
-function readColors(){ C={paper:css('--paper'),gm:css('--grid-minor'),gM:css('--grid-major'),fg:css('--fg'),muted:css('--muted'),wall:css('--wall'),acc:css('--accent'),dev:css('--device-fill'),bad:css('--bad')}; }
-function resize(){ const r=cv.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr); ctx.setTransform(dpr,0,0,dpr,0,0); render(); }
-function render(){
+function readColors(){ C={paper:css('--paper'),gm:css('--grid-minor'),gM:css('--grid-major'),fg:css('--fg'),muted:css('--muted'),wall:css('--wall'),wall3:css('--wall3'),acc:css('--accent'),dev:css('--device-fill'),font:css('--font'),mono:css('--mono')}; }
+
+// =====================================================================
+// 2D plan
+// =====================================================================
+const cv=$('cv'); const ctx=cv.getContext('2d');
+function toScreen(x,y){ return {x:view.ox+x*view.s, y:view.oy+y*view.s}; }
+function toWorld(sx,sy){ return {x:(sx-view.ox)/view.s, y:(sy-view.oy)/view.s}; }
+function evPos(e){ const r=cv.getBoundingClientRect(); return {sx:e.clientX-r.left, sy:e.clientY-r.top}; }
+function zoomAt(f,sx,sy){ const w=toWorld(sx,sy); view.s=clamp(view.s*f,15,600); view.ox=sx-w.x*view.s; view.oy=sy-w.y*view.s; draw2D(); }
+function fit2D(){
+  const b=bounds(), W=cv.clientWidth, Hh=cv.clientHeight; if(!W||!Hh) return;
+  const bw=Math.max(1,b.maxx-b.minx), bh=Math.max(1,b.maxy-b.miny);
+  view.s=clamp(Math.min((W-80)/bw,(Hh-80)/bh),15,600);
+  view.ox=(W-bw*view.s)/2-b.minx*view.s; view.oy=(Hh-bh*view.s)/2-b.miny*view.s; draw2D();
+}
+function resize2D(){ const r=cv.getBoundingClientRect(); if(!r.width) return; const dpr=window.devicePixelRatio||1; cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr); ctx.setTransform(dpr,0,0,dpr,0,0); draw2D(); }
+function draw2D(){
+  if(viewMode!=='2d') return;
   readColors();
   const W=cv.clientWidth, Hh=cv.clientHeight; ctx.clearRect(0,0,W,Hh);
   ctx.fillStyle=C.paper; ctx.fillRect(0,0,W,Hh);
   if(showGrid) drawGrid(W,Hh);
-  // walls
   for(const w of S.walls){ const a=toScreen(w.x1,w.y1), b=toScreen(w.x2,w.y2); const isSel=sel&&sel.kind==='wall'&&sel.id===w.id;
     ctx.lineCap='square'; ctx.lineWidth=Math.max(3,(w.th||WALL_T)*view.s); ctx.strokeStyle=isSel?C.acc:C.wall; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
     if(view.s>=30&&wallLen(w)>0.45){ const m={x:(a.x+b.x)/2,y:(a.y+b.y)/2}; const ang=Math.atan2(b.y-a.y,b.x-a.x); const nx=-Math.sin(ang), ny=Math.cos(ang); const off=Math.max(3,(w.th||WALL_T)*view.s)/2+10;
-      ctx.save(); ctx.translate(m.x+nx*off,m.y+ny*off); let ra=ang; if(ra>Math.PI/2||ra<-Math.PI/2) ra+=Math.PI; ctx.rotate(ra); ctx.fillStyle=C.muted; ctx.font='11px '+css('--mono'); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(fmt(wallLen(w))+' м',0,0); ctx.restore(); }
+      ctx.save(); ctx.translate(m.x+nx*off,m.y+ny*off); let ra=ang; if(ra>Math.PI/2||ra<-Math.PI/2) ra+=Math.PI; ctx.rotate(ra); ctx.fillStyle=C.muted; ctx.font='11px '+C.mono; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(w.name+' · '+fmt(wallLen(w))+' м',0,0); ctx.restore(); }
     if(isSel){ for(const p of [a,b]){ ctx.fillStyle=C.dev; ctx.strokeStyle=C.acc; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(p.x,p.y,6,0,7); ctx.fill(); ctx.stroke(); } }
   }
-  // cables
-  for(const c of S.cables) drawCable(c, sel&&sel.kind==='cable'&&sel.id===c.id);
-  // devices
-  for(const d of S.devices) drawDevice(d, sel&&sel.kind==='device'&&sel.id===d.id);
-  // draft
-  if(draft) drawDraft();
-  // hover snap
-  if(hover&&hover.snap&&!isTouchOnly){ drawSnap(hover.snap); }
-  else if(hover&&hover.snap&&draft){ drawSnap(hover.snap); }
-  // origin mark
+  for(const c of S.cables) drawCable2(c, sel&&sel.kind==='cable'&&sel.id===c.id);
+  for(const d of S.devices) drawDevice2(d, sel&&sel.kind==='device'&&sel.id===d.id);
+  if(draft) drawDraft2();
+  if(hover&&hover.snap&&(!isTouchOnly||draft)) drawSnap2(hover.snap);
   const o=toScreen(0,0); ctx.strokeStyle=C.gM; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(o.x-8,o.y); ctx.lineTo(o.x+8,o.y); ctx.moveTo(o.x,o.y-8); ctx.lineTo(o.x,o.y+8); ctx.stroke();
 }
 function drawGrid(W,Hh){
-  const minorOk=view.s>=40; const step=minorOk?GRID:0.5;
-  const w0=toWorld(0,0), w1=toWorld(W,Hh);
-  ctx.lineWidth=1;
-  for(let x=Math.floor(w0.x/step)*step; x<=w1.x; x+=step){ const sx=Math.round(toScreen(x,0).x)+.5; const major=Math.abs(x-Math.round(x))<1e-6; ctx.strokeStyle=major?C.gM:C.gm; ctx.beginPath(); ctx.moveTo(sx,0); ctx.lineTo(sx,Hh); ctx.stroke(); }
-  for(let y=Math.floor(w0.y/step)*step; y<=w1.y; y+=step){ const sy=Math.round(toScreen(0,y).y)+.5; const major=Math.abs(y-Math.round(y))<1e-6; ctx.strokeStyle=major?C.gM:C.gm; ctx.beginPath(); ctx.moveTo(0,sy); ctx.lineTo(W,sy); ctx.stroke(); }
+  const step=view.s>=40?GRID:0.5; const w0=toWorld(0,0), w1=toWorld(W,Hh); ctx.lineWidth=1;
+  for(let x=Math.floor(w0.x/step)*step; x<=w1.x; x+=step){ const sx=Math.round(toScreen(x,0).x)+.5; ctx.strokeStyle=Math.abs(x-Math.round(x))<1e-6?C.gM:C.gm; ctx.beginPath(); ctx.moveTo(sx,0); ctx.lineTo(sx,Hh); ctx.stroke(); }
+  for(let y=Math.floor(w0.y/step)*step; y<=w1.y; y+=step){ const sy=Math.round(toScreen(0,y).y)+.5; ctx.strokeStyle=Math.abs(y-Math.round(y))<1e-6?C.gM:C.gm; ctx.beginPath(); ctx.moveTo(0,sy); ctx.lineTo(W,sy); ctx.stroke(); }
 }
-function drawCable(c,isSel,previewPts){
-  const pts=previewPts||c.points; const P=pts.map(ptPos);
+function drawCable2(c,isSel,previewPts){
+  const pts=previewPts||c.points; const P=pts.map(ptRP); const Z=pts.map(p=>ptPos(p).z);
   ctx.lineCap='round'; ctx.lineJoin='round';
   for(let i=1;i<P.length;i++){ const a=P[i-1], b=P[i]; const sa=toScreen(a.x,a.y), sb=toScreen(b.x,b.y);
     if(Math.hypot(sa.x-sb.x,sa.y-sb.y)<0.5) continue;
-    const ceil=isCeil(a.z)&&isCeil(b.z);
+    const ceil=isCeil(Z[i-1])&&isCeil(Z[i]);
     if(isSel){ ctx.strokeStyle=C.acc; ctx.lineWidth=7; ctx.globalAlpha=.35; ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(sa.x,sa.y); ctx.lineTo(sb.x,sb.y); ctx.stroke(); ctx.globalAlpha=1; }
     ctx.strokeStyle=c.color; ctx.lineWidth=isSel?3:2.2; ctx.setLineDash(ceil?[7,5]:[]); ctx.beginPath(); ctx.moveTo(sa.x,sa.y); ctx.lineTo(sb.x,sb.y); ctx.stroke(); }
   ctx.setLineDash([]);
-  // risers / bend points
-  for(let i=0;i<P.length;i++){ const p=pts[i]; if(p.kind==='device') continue; const q=P[i]; const s=toScreen(q.x,q.y);
-    const riser=(i>0&&Math.abs(P[i-1].z-q.z)>CEIL_EPS)||(i<P.length-1&&Math.abs(P[i+1].z-q.z)>CEIL_EPS);
+  for(let i=0;i<P.length;i++){ if(pts[i].kind==='device') continue; const q=P[i]; const s=toScreen(q.x,q.y);
+    const riser=(i>0&&Math.abs(Z[i-1]-Z[i])>CEIL_EPS)||(i<P.length-1&&Math.abs(Z[i+1]-Z[i])>CEIL_EPS);
     ctx.fillStyle=C.dev; ctx.strokeStyle=c.color; ctx.lineWidth=riser?2:1.5; ctx.beginPath(); ctx.arc(s.x,s.y,riser?5:3,0,7); ctx.fill(); ctx.stroke();
     if(riser){ ctx.beginPath(); ctx.arc(s.x,s.y,1.5,0,7); ctx.fillStyle=c.color; ctx.fill(); }
-    if(isSel&&view.s>=45&&!isCeil(q.z)){ ctx.fillStyle=C.muted; ctx.font='10px '+css('--mono'); ctx.textAlign='left'; ctx.textBaseline='bottom'; ctx.fillText(cm(q.z)+'',s.x+6,s.y-4); }
+    if(isSel&&view.s>=45&&!isCeil(Z[i])){ ctx.fillStyle=C.muted; ctx.font='10px '+C.mono; ctx.textAlign='left'; ctx.textBaseline='bottom'; ctx.fillText(cm(Z[i])+'',s.x+6,s.y-4); }
   }
 }
-function drawDevice(d,isSel){
-  const p=devPos(d), s=toScreen(p.x,p.y); const r=Math.max(6,Math.min(16,0.12*view.s));
-  let ang=0; if(d.wallId){ const w=wallById(d.wallId); if(w) ang=Math.atan2(w.y2-w.y1,w.x2-w.x1); }
+function drawDevice2(d,isSel){
+  const p=devRP(d), s=toScreen(p.x,p.y); const r=Math.max(6,Math.min(16,0.12*view.s));
+  let ang=0; if(d.wallId){ const w=wallById(d.wallId); if(w) ang=Math.atan2(w.y2-w.y1,w.x2-w.x1)+((d.side||1)<0?Math.PI:0); }
   ctx.save(); ctx.translate(s.x,s.y);
   if(isSel){ ctx.fillStyle=C.acc; ctx.globalAlpha=.3; ctx.beginPath(); ctx.arc(0,0,r*1.9,0,7); ctx.fill(); ctx.globalAlpha=1; }
   ctx.lineWidth=1.8; ctx.strokeStyle=C.fg; ctx.fillStyle=C.dev;
-  if(d.type==='panel'){ ctx.rotate(ang); ctx.fillStyle=C.fg; ctx.fillRect(-r*1.3,-r*.8,r*2.6,r*1.6); ctx.fillStyle=C.dev; ctx.font=`bold ${Math.round(r*1.1)}px ${css('--font')}`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('Т',0,1); }
-  else if(d.type==='box'){ ctx.rotate(Math.PI/4); ctx.fillStyle=C.dev; ctx.fillRect(-r*.75,-r*.75,r*1.5,r*1.5); ctx.strokeRect(-r*.75,-r*.75,r*1.5,r*1.5); ctx.rotate(-Math.PI/4); ctx.beginPath(); ctx.arc(0,0,r*.25,0,7); ctx.fillStyle=C.fg; ctx.fill(); }
+  if(d.type==='panel'){ ctx.rotate(ang); ctx.fillStyle=C.fg; ctx.fillRect(-r*1.3,-r*.8,r*2.6,r*1.6); ctx.fillStyle=C.dev; ctx.font=`bold ${Math.round(r*1.1)}px ${C.font}`; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('Т',0,1); }
+  else if(d.type==='box'){ ctx.rotate(Math.PI/4); ctx.fillRect(-r*.75,-r*.75,r*1.5,r*1.5); ctx.strokeRect(-r*.75,-r*.75,r*1.5,r*1.5); ctx.rotate(-Math.PI/4); ctx.beginPath(); ctx.arc(0,0,r*.25,0,7); ctx.fillStyle=C.fg; ctx.fill(); }
   else if(d.type==='socket'){ ctx.rotate(ang); ctx.beginPath(); ctx.arc(0,0,r,0,7); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-r*.5,0); ctx.lineTo(r*.5,0); ctx.moveTo(0,-r); ctx.lineTo(0,-r*1.7); ctx.stroke(); }
   else if(d.type==='switch'){ ctx.beginPath(); ctx.arc(0,0,r*.8,0,7); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(r*1.1,-r*1.4); ctx.lineTo(r*1.5,-r*1.2); ctx.stroke(); }
   else if(d.type==='light'){ ctx.beginPath(); ctx.arc(0,0,r*.85,0,7); ctx.fill(); ctx.stroke(); const k=r*.6; ctx.beginPath(); ctx.moveTo(-k,-k); ctx.lineTo(k,k); ctx.moveTo(k,-k); ctx.lineTo(-k,k); ctx.stroke(); }
   ctx.restore();
-  if(view.s>=35){ ctx.fillStyle=C.fg; ctx.font='11px '+css('--mono'); ctx.textAlign='center'; ctx.textBaseline='top'; ctx.fillText(d.name,s.x,s.y+r+4);
-    if(view.s>=70&&d.wallId){ ctx.fillStyle=C.muted; ctx.font='10px '+css('--mono'); ctx.fillText(cm(p.z)+' см',s.x,s.y+r+17); } }
+  if(view.s>=35&&showLabels){ ctx.fillStyle=C.fg; ctx.font='11px '+C.mono; ctx.textAlign='center'; ctx.textBaseline='top'; ctx.fillText(d.name,s.x,s.y+r+4);
+    if(view.s>=70&&d.wallId){ ctx.fillStyle=C.muted; ctx.font='10px '+C.mono; ctx.fillText(cm(p.z)+' см',s.x,s.y+r+17); } }
 }
-function drawDraft(){
-  if(draft.type==='wall'){ const pts=draft.pts.slice(); if(hover&&hover.snap) pts.push(hover.snap);
+function drawDraft2(){
+  const pts=draft.pts.slice(); if(hover&&hover.snap) pts.push(hover.snap.kind?cleanPt(hover.snap):hover.snap);
+  if(draft.type==='wall'){
     ctx.lineCap='square'; ctx.lineWidth=Math.max(3,WALL_T*view.s); ctx.strokeStyle=C.acc; ctx.globalAlpha=.7; ctx.beginPath(); pts.forEach((p,i)=>{const s=toScreen(p.x,p.y); i?ctx.lineTo(s.x,s.y):ctx.moveTo(s.x,s.y);}); ctx.stroke(); ctx.globalAlpha=1;
-    if(pts.length>=2){ const a=pts[pts.length-2], b=pts[pts.length-1]; const L=Math.hypot(a.x-b.x,a.y-b.y); const m=toScreen((a.x+b.x)/2,(a.y+b.y)/2); ctx.fillStyle=C.fg; ctx.font='12px '+css('--mono'); ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.fillText(fmt(L)+' м',m.x,m.y-12); }
+    if(pts.length>=2){ const a=pts[pts.length-2], b=pts[pts.length-1]; const m=toScreen((a.x+b.x)/2,(a.y+b.y)/2); ctx.fillStyle=C.fg; ctx.font='12px '+C.mono; ctx.textAlign='center'; ctx.textBaseline='bottom'; ctx.fillText(fmt(Math.hypot(a.x-b.x,a.y-b.y))+' м',m.x,m.y-12); }
     for(const p of draft.pts){ const s=toScreen(p.x,p.y); ctx.fillStyle=C.acc; ctx.beginPath(); ctx.arc(s.x,s.y,4,0,7); ctx.fill(); }
-  } else {
-    const pts=draft.pts.slice(); if(hover&&hover.snap) pts.push(hover.snap);
-    const ct=CABLE_TYPES.find(c=>c.id===cableType)||CABLE_TYPES[0];
-    drawCable({color:ct.color,points:pts},true,pts);
-  }
+  } else { const ct=CABLE_TYPES.find(c=>c.id===cableType)||CABLE_TYPES[0]; drawCable2({color:ct.color,points:pts},true,pts); }
 }
-function drawSnap(sn){
-  const p=sn.kind?ptPos(sn):sn; const s=toScreen(p.x,p.y);
+function drawSnap2(sn){
+  const p=sn.kind?ptRP(sn):sn; const s=toScreen(p.x,p.y);
   ctx.strokeStyle=C.acc; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(s.x,s.y,8,0,7); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(s.x-12,s.y); ctx.lineTo(s.x+12,s.y); ctx.moveTo(s.x,s.y-12); ctx.lineTo(s.x,s.y+12); ctx.stroke();
-  if(sn.label){ ctx.fillStyle=C.fg; ctx.font='11px '+css('--font'); ctx.textAlign='left'; ctx.textBaseline='bottom'; ctx.fillText(sn.label,s.x+12,s.y-8); }
+  if(sn.label){ ctx.fillStyle=C.fg; ctx.font='11px '+C.font; ctx.textAlign='left'; ctx.textBaseline='bottom'; ctx.fillText(sn.label,s.x+12,s.y-8); }
+}
+// 2D hit testing and dragging
+function hitTest2(wx,wy){
+  const t=thr();
+  const nd=nearestDevice2(wx,wy,t*1.6); if(nd) return {kind:'device',id:nd.dev.id};
+  let best=null;
+  for(const c of S.cables){ const P=c.points.map(ptRP); for(let i=1;i<P.length;i++){ const d=distSeg(wx,wy,P[i-1].x,P[i-1].y,P[i].x,P[i].y); if(d<=t&&(!best||d<best.d)) best={kind:'cable',id:c.id,d}; } }
+  if(best) return {kind:best.kind,id:best.id};
+  const nw=nearestWall(wx,wy,t*1.2); if(nw) return {kind:'wall',id:nw.wall.id};
+  return null;
+}
+function pickDrag2(wx,wy){
+  const t=thr()*1.4;
+  if(sel&&sel.kind==='wall'){ const w=wallById(sel.id); if(w){ if(Math.hypot(w.x1-wx,w.y1-wy)<=t) return {kind:'wallEnd',id:w.id,end:1}; if(Math.hypot(w.x2-wx,w.y2-wy)<=t) return {kind:'wallEnd',id:w.id,end:2}; } }
+  if(sel&&sel.kind==='cable'){ const c=cableById(sel.id); if(c){ for(let i=0;i<c.points.length;i++){ const p=c.points[i]; if(p.kind==='device') continue; const q=ptRP(p); if(Math.hypot(q.x-wx,q.y-wy)<=t) return {kind:'cablePt',id:c.id,idx:i}; } } }
+  const h=hitTest2(wx,wy);
+  if(h&&h.kind==='device') return {kind:'device',id:h.id};
+  if(h&&h.kind==='wall'&&sel&&sel.kind==='wall'&&sel.id===h.id){ const w=wallById(h.id); return {kind:'wallMove',id:w.id,x1:w.x1,y1:w.y1,x2:w.x2,y2:w.y2}; }
+  return null;
+}
+function dragWall(d,wx,wy,start){
+  const w=wallById(d.id); if(!w) return;
+  if(d.kind==='wallEnd'){ let x=wx,y=wy; const other=d.end===1?{x:w.x2,y:w.y2}:{x:w.x1,y:w.y1}; let sn=null;
+    for(const o of S.walls){ if(o.id===w.id) continue; for(const [px,py] of [[o.x1,o.y1],[o.x2,o.y2]]){ if(Math.hypot(px-wx,py-wy)<=0.15) sn={x:px,y:py}; } }
+    if(sn){ x=sn.x; y=sn.y; } else { if(ortho){ if(Math.abs(wx-other.x)>Math.abs(wy-other.y)) y=other.y; else x=other.x; } x=snapGrid(x); y=snapGrid(y); }
+    if(d.end===1){ w.x1=x; w.y1=y; } else { w.x2=x; w.y2=y; } }
+  else if(d.kind==='wallMove'){ const dx=snapGrid(wx-start.x), dy=snapGrid(wy-start.y); w.x1=d.x1+dx; w.y1=d.y1+dy; w.x2=d.x2+dx; w.y2=d.y2+dy; }
+}
+function applyDrag2(d,wx,wy,start){
+  if(d.kind==='device'){ const dev=devById(d.id); if(dev) moveDevice2(dev,wx,wy); sel={kind:'device',id:d.id}; }
+  else if(d.kind==='wallEnd'||d.kind==='wallMove') dragWall(d,wx,wy,start);
+  else if(d.kind==='cablePt'){ const c=cableById(d.id); if(!c) return; const p=c.points[d.idx]; if(!p||p.kind==='device') return;
+    if(p.kind==='wall'){ const nw=nearestWall(wx,wy,thr()*2); if(nw){ p.wallId=nw.wall.id; p.t=nw.t; p.side=sideOf(nw.wall,wx,wy); } }
+    else { const nw=nearestWall(wx,wy,thr()); if(nw) c.points[d.idx]={kind:'wall',wallId:nw.wall.id,t:nw.t,z:S.H,side:sideOf(nw.wall,wx,wy)}; else { p.x=snapGrid(wx); p.y=snapGrid(wy); } } }
 }
 
-// ---------- elevation (wall unfolded) ----------
-function drawElevation(canvas,w){
-  const L=wallLen(w), H=S.H; const cw=canvas.clientWidth||280; const pad=28;
-  const sc=Math.min((cw-pad*2)/L,(260-pad*2)/H); const ch=Math.round(H*sc+pad*2);
-  const dpr=window.devicePixelRatio||1; canvas.width=cw*dpr; canvas.height=ch*dpr; canvas.style.height=ch+'px';
-  const g=canvas.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0); g.clearRect(0,0,cw,ch);
-  const X=t=>pad+t*L*sc, Y=z=>pad+(H-z)*sc;
-  g.fillStyle=C.paper; g.fillRect(0,0,cw,ch);
-  // ceiling-height guides every 0.5 m
-  g.strokeStyle=C.gm; g.lineWidth=1; for(let z=0.5; z<H; z+=0.5){ g.beginPath(); g.moveTo(X(0),Y(z)); g.lineTo(X(1),Y(z)); g.stroke(); }
-  g.strokeStyle=C.wall; g.lineWidth=2; g.strokeRect(X(0),Y(H),L*sc,H*sc);
-  g.fillStyle=C.muted; g.font='10px '+css('--mono'); g.textAlign='center'; g.textBaseline='top'; g.fillText(fmt(L)+' м',X(.5),Y(0)+6);
-  g.textAlign='right'; g.textBaseline='middle'; g.fillText(cm(H)+'',X(0)-4,Y(H)); g.fillText('0',X(0)-4,Y(0));
-  // cables on this wall
-  for(const c of S.cables){ const pts=c.points; const P=pts.map(ptPos);
-    const onWall=i=>{ const p=pts[i]; if(p.kind==='wall') return p.wallId===w.id; if(p.kind==='device'){ const d=devById(p.deviceId); return d&&d.wallId===w.id; } return false; };
-    const tOf=i=>projWall(w,P[i].x,P[i].y).t;
-    g.strokeStyle=c.color; g.lineWidth=2; g.lineCap='round';
-    for(let i=0;i<pts.length;i++){ if(!onWall(i)) continue; const t=tOf(i), z=P[i].z;
-      for(const j of [i-1,i+1]){ if(j<0||j>=pts.length) continue;
-        if(onWall(j)){ if(j>i){ g.setLineDash([]); g.beginPath(); g.moveTo(X(t),Y(z)); g.lineTo(X(tOf(j)),Y(P[j].z)); g.stroke(); } }
-        else if(isCeil(P[j].z)){ g.setLineDash([4,3]); g.beginPath(); g.moveTo(X(t),Y(z)); g.lineTo(X(t),Y(H)); g.stroke(); const tj=projWall(w,P[j].x,P[j].y).t; g.beginPath(); g.moveTo(X(t),Y(H)); g.lineTo(X(tj),Y(H)); g.stroke(); }
-        else { const tj=projWall(w,P[j].x,P[j].y).t; g.setLineDash([4,3]); g.beginPath(); g.moveTo(X(t),Y(z)); g.lineTo(X(tj),Y(P[j].z)); g.stroke(); }
-      }
-      g.setLineDash([]); g.fillStyle=C.dev; g.beginPath(); g.arc(X(t),Y(z),3,0,7); g.fill(); g.stroke();
-    }
-  }
-  // devices
-  for(const d of S.devices){ if(d.wallId!==w.id) continue; const p=devPos(d); const x=X(d.t), y=Y(p.z);
-    g.setLineDash([]); g.fillStyle=C.dev; g.strokeStyle=C.fg; g.lineWidth=1.5;
-    if(d.type==='panel'){ g.fillStyle=C.fg; g.fillRect(x-9,y-12,18,24); }
-    else if(d.type==='box'){ g.save(); g.translate(x,y); g.rotate(Math.PI/4); g.fillRect(-5,-5,10,10); g.strokeRect(-5,-5,10,10); g.restore(); }
-    else { g.beginPath(); g.arc(x,y,6,0,7); g.fill(); g.stroke(); }
-    g.fillStyle=C.fg; g.font='10px '+css('--mono'); g.textAlign='center'; g.textBaseline='top'; g.fillText(d.name,x,y+(d.type==='panel'?14:8));
-    g.fillStyle=C.muted; g.fillText(cm(p.z)+' см',x,y+(d.type==='panel'?26:20));
-  }
+// =====================================================================
+// tool actions shared by 2D and 3D
+// =====================================================================
+function wallTap(p){
+  if(!draft){ draft={type:'wall',pts:[{x:p.x,y:p.y}]}; }
+  else { const last=draft.pts[draft.pts.length-1]; if(Math.hypot(last.x-p.x,last.y-p.y)<1e-6){ finishDraft(); return; }
+    draft.pts.push({x:p.x,y:p.y}); if(p.close){ finishDraft(); return; } }
+  updateUI(); render();
 }
-
-// ---------- side panel ----------
-const $=id=>document.getElementById(id);
-function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
-function renderSide(){ renderProps(); renderList(); }
-function renderProps(){
-  const el=$('tab-props');
-  if(!sel){
-    const totals=totalsByType();
-    el.innerHTML=`<h3>Проект</h3>
-      <div class="props"><label>Стени</label><div class="num">${S.walls.length}</div><label>Елементи</label><div class="num">${S.devices.length}</div><label>Кабели</label><div class="num">${S.cables.length}</div>
-      <label>Общо кабел</label><div class="num">${fmt(totals.all)} м</div><label>Таван</label><div class="num">${cm(S.H)} см</div></div>
-      <h3 style="margin-top:16px">Какво да направите</h3>
-      <p class="small muted">Маркирайте стена, елемент или кабел, за да редактирате свойствата му. Изберете инструмент от лентата и кликнете в плана, за да чертаете. Разделът „Списък“ показва спецификацията и предупрежденията.</p>`;
-    return;
-  }
-  if(sel.kind==='wall'){ const w=wallById(sel.id); if(!w){sel=null;return renderProps();}
-    const devs=S.devices.filter(d=>d.wallId===w.id);
-    el.innerHTML=`<h3>Стена</h3><div class="props">
-      <label for="pName">Име</label><input type="text" id="pName" value="${esc(w.name)}">
-      <label>Дължина</label><div class="num">${fmt(wallLen(w))} м</div>
-      <label for="pTh">Дебелина</label><div><input type="number" id="pTh" step="1" min="5" max="60" value="${cm(w.th||WALL_T)}"> см</div>
-      <label>Елементи</label><div>${devs.length?devs.map(d=>`<span class="pill">${esc(d.name)}</span>`).join(' '):'<span class="muted">няма</span>'}</div>
-      <div class="full row"><button id="pDel" class="danger">Изтрий стената</button></div></div>
-      <h4>Разгънат изглед (поглед към стената)</h4><canvas id="elev"></canvas>
-      <p class="small muted">Пунктир: кабелът напуска стената (към тавана или друга стена). Числата са см от пода.</p>`;
-    $('pName').onchange=e=>{pushHistory();w.name=e.target.value;commit();};
-    $('pTh').onchange=e=>{pushHistory();w.th=Math.max(.05,(+e.target.value||12)/100);commit();};
-    $('pDel').onclick=deleteSelected;
-    requestAnimationFrame(()=>{ const c=$('elev'); if(c) drawElevation(c,w); });
-    return;
-  }
-  if(sel.kind==='device'){ const d=devById(sel.id); if(!d){sel=null;return renderProps();}
-    const T=TYPES[d.type]; const p=devPos(d); const w=d.wallId?wallById(d.wallId):null; const cabs=deviceCables(d);
-    el.innerHTML=`<h3>${esc(T.label)}</h3><div class="props">
-      <label for="pName">Име</label><input type="text" id="pName" value="${esc(d.name)}">
-      <label>Място</label><div>${w?'стена '+esc(w.name):'таван'}</div>
-      ${w?`<label for="pZ">Височина</label><div><input type="number" id="pZ" step="5" min="0" max="${cm(S.H)}" value="${cm(p.z)}"> см от пода</div>
-      <label for="pT">От началото</label><div><input type="number" id="pT" step="0.05" min="0" max="${fmt(wallLen(w))}" value="${fmt(d.t*wallLen(w))}"> м по стената</div>`
-      :`<label>Позиция</label><div class="num">${fmt(p.x)} ; ${fmt(p.y)} м</div>`}
-      ${d.type==='box'?`<label>Монтаж</label><div class="row"><button id="pToCeil" ${w?'':'disabled'}>На тавана</button><span class="small muted">${w?'':'Влачете до стена, за да е на стена'}</span></div>`:''}
-      <label>Кабели</label><div>${cabs.length?cabs.map(c=>`<span class="pill" style="border-color:${c.color}">${esc(c.name)}</span>`).join(' '):'<span class="pill warn">няма</span>'}</div>
-      <div class="full row"><button id="pCable" class="primary">Нов кабел от тук</button><button id="pDel" class="danger">Изтрий</button></div></div>
-      <p class="small muted">Елементите се местят с влачене в плана (инструмент „Избор“). Кабелите, закачени за елемента, следват.</p>`;
-    $('pName').onchange=e=>{pushHistory();d.name=e.target.value;commit();};
-    if(w){ $('pZ').onchange=e=>{pushHistory();d.z=Math.max(0,Math.min(S.H,(+e.target.value||0)/100));commit();};
-      $('pT').onchange=e=>{pushHistory();d.t=Math.max(0,Math.min(1,(parseFloat(String(e.target.value).replace(',','.'))||0)/wallLen(w)));commit();}; }
-    if(d.type==='box'&&w){ $('pToCeil').onclick=()=>{pushHistory();d.x=p.x;d.y=p.y;d.wallId=null;d.z=null;commit();}; }
-    $('pCable').onclick=()=>{ setTool('cable'); draft={type:'cable',pts:[{kind:'device',deviceId:d.id}]}; updateUI(); render(); closeSide(); toast('Кликнете следващата точка на кабела'); };
-    $('pDel').onclick=deleteSelected;
-    return;
-  }
-  if(sel.kind==='cable'){ const c=cableById(sel.id); if(!c){sel=null;return renderProps();}
-    const ends=cableDevices(c); const a=c.points[0], b=c.points[c.points.length-1];
-    const endName=p=>p.kind==='device'?(devById(p.deviceId)||{name:'?'}).name:'<span class="pill warn">отворен</span>';
-    const P=c.points.map(ptPos);
-    el.innerHTML=`<h3>Кабел</h3><div class="props">
-      <label for="pName">Име</label><input type="text" id="pName" value="${esc(c.name)}">
-      <label for="pType">Тип</label><select id="pType">${CABLE_TYPES.map(t=>`<option value="${t.id}" ${t.id===c.type?'selected':''}>${t.label}</option>`).join('')}</select>
-      <label for="pColor">Цвят</label><input type="color" id="pColor" value="${c.color}">
-      <label>Дължина</label><div class="num">${fmt(cableLength(c))} м <span class="muted small">(+10 % = ${fmt(cableLength(c)*1.1)} м)</span></div>
-      <label>От → до</label><div>${endName(a)} → ${endName(b)}</div>
-      <label for="pAllH">Височина по стени</label><div><input type="number" id="pAllH" step="5" min="0" max="${cm(S.H)}" placeholder="см"> <button id="pAllHBtn">Приложи</button></div>
-      <div class="full row"><button id="pRev">Обърни посоката</button><button id="pDel" class="danger">Изтрий</button></div></div>
-      <h4>Точки на трасето</h4><div class="ptlist">
-      ${c.points.map((p,i)=>{ const q=P[i]; const kind=p.kind==='device'?esc((devById(p.deviceId)||{name:'?'}).name):p.kind==='wall'?'стена '+esc((wallById(p.wallId)||{name:'?'}).name):'таван';
-        return `<span class="num muted">${i+1}</span><span>${kind}${p.kind!=='device'?` <span class="muted small">${fmt(q.x)};${fmt(q.y)}</span>`:''}</span><span>${p.kind==='wall'?`<input type="number" data-i="${i}" class="ptz" step="5" min="0" max="${cm(S.H)}" value="${cm(q.z)}"> см`:`<span class="num muted">${cm(q.z)} см</span>`}</span>`; }).join('')}</div>
-      <p class="small muted">Точките по стена могат да се влачат по стената, точките по тавана – свободно. Дължината включва вертикалните спускания.</p>`;
-    $('pName').onchange=e=>{pushHistory();c.name=e.target.value;commit();};
-    $('pType').onchange=e=>{pushHistory();c.type=e.target.value;c.color=(CABLE_TYPES.find(t=>t.id===c.type)||{}).color||c.color;commit();};
-    $('pColor').onchange=e=>{pushHistory();c.color=e.target.value;commit();};
-    $('pAllHBtn').onclick=()=>{ const v=+$('pAllH').value; if(!v&&v!==0) return; pushHistory(); c.points.forEach(p=>{ if(p.kind==='wall') p.z=Math.max(0,Math.min(S.H,v/100)); }); commit(); };
-    $('pRev').onclick=()=>{pushHistory();c.points.reverse();commit();};
-    $('pDel').onclick=deleteSelected;
-    el.querySelectorAll('.ptz').forEach(inp=>inp.onchange=e=>{ pushHistory(); const p=c.points[+e.target.dataset.i]; p.z=Math.max(0,Math.min(S.H,(+e.target.value||0)/100)); commit(); });
-  }
+function cableTap(p){
+  const pt=cleanPt(p);
+  if(!draft){ draft={type:'cable',pts:[pt]}; if(p.kind!=='device') toast('Кабелът не започва от елемент. Може да го свържете после.'); }
+  else { const last=draft.pts[draft.pts.length-1]; if(samePt(last,pt)){ finishDraft(); return; }
+    draft.pts.push(pt); if(p.kind==='device'){ finishDraft(); return; } }
+  updateUI(); render();
 }
-function totalsByType(){ const t={all:0,by:{}}; for(const c of S.cables){ const L=cableLength(c); t.all+=L; t.by[c.type]=(t.by[c.type]||0)+L; } return t; }
-function renderList(){
-  const el=$('tab-list'); const tot=totalsByType(); const warns=validate();
-  const selIs=(k,id)=>sel&&sel.kind===k&&sel.id===id?'sel':'';
-  el.innerHTML=`<h3>Проверки</h3>
-    ${warns.length?`<ul class="warnlist">${warns.map((w,i)=>`<li data-w="${i}">${esc(w.msg)}</li>`).join('')}</ul>`:'<ul class="warnlist"><li class="ok">Всички елементи са свързани, кабелите имат два края.</li></ul>'}
-    <h3 style="margin-top:16px">Кабели по тип</h3>
-    <table class="list"><tr><th>Тип</th><th class="num">м</th><th class="num">+10 %</th></tr>
-    ${Object.entries(tot.by).map(([k,L])=>{const t=CABLE_TYPES.find(x=>x.id===k)||{label:k,color:'#888'}; return `<tr><td><span class="swatch" style="background:${t.color}"></span>${esc(t.label)}</td><td class="num">${fmt(L)}</td><td class="num">${fmt(L*1.1)}</td></tr>`;}).join('')}
-    <tr><td><b>Общо</b></td><td class="num"><b>${fmt(tot.all)}</b></td><td class="num"><b>${fmt(tot.all*1.1)}</b></td></tr></table>
-    <h3 style="margin-top:16px">Кабели</h3>
-    <table class="list"><tr><th>Име</th><th>Трасе</th><th class="num">м</th></tr>
-    ${S.cables.map(c=>{const a=c.points[0],b=c.points[c.points.length-1]; const n=p=>p.kind==='device'?esc((devById(p.deviceId)||{name:'?'}).name):'<span class="pill warn">отв.</span>'; return `<tr data-sel="cable:${c.id}" class="${selIs('cable',c.id)}"><td><span class="swatch" style="background:${c.color}"></span>${esc(c.name)}</td><td>${n(a)} → ${n(b)}</td><td class="num">${fmt(cableLength(c))}</td></tr>`;}).join('')||'<tr><td colspan="3" class="muted">няма кабели</td></tr>'}</table>
-    <h3 style="margin-top:16px">Елементи</h3>
-    <table class="list"><tr><th>Име</th><th>Вид</th><th>Място</th><th class="num">h см</th></tr>
-    ${S.devices.map(d=>{const p=devPos(d); const w=d.wallId?wallById(d.wallId):null; return `<tr data-sel="device:${d.id}" class="${selIs('device',d.id)}"><td>${esc(d.name)}</td><td>${esc(TYPES[d.type].label)}</td><td>${w?esc(w.name):'таван'}</td><td class="num">${cm(p.z)}</td></tr>`;}).join('')||'<tr><td colspan="4" class="muted">няма елементи</td></tr>'}</table>`;
-  el.querySelectorAll('[data-sel]').forEach(tr=>tr.onclick=()=>{ const [k,id]=tr.dataset.sel.split(':'); sel={kind:k,id}; showTab('props'); commit(); });
-  el.querySelectorAll('[data-w]').forEach(li=>li.onclick=()=>{ const w=warns[+li.dataset.w]; if(w.sel){ sel=w.sel; showTab('props'); commit(); } });
-}
-function showTab(name){ document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name)); ['props','list','help'].forEach(t=>$('tab-'+t).hidden=t!==name); }
-document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
-function openSide(){ $('side').classList.add('open'); } function closeSide(){ $('side').classList.remove('open'); }
-$('btnSide').onclick=()=>{ $('side').classList.toggle('open'); };
-$('btnSideClose').onclick=closeSide;
-
-// ---------- tool rail & HUD ----------
-function buildRail(){
-  const r=$('rail'); r.innerHTML='';
-  TOOLS.forEach((t,i)=>{ if(t.id==='pan'){ const g=document.createElement('div'); g.className='gap'; r.appendChild(g); }
-    const b=document.createElement('button'); b.dataset.tool=t.id; b.title=t.label+' ('+t.key+')'; b.innerHTML=`<span class="k">${t.key}</span><svg viewBox="0 0 24 24"><path d="${t.icon}"/></svg><span class="t">${t.label}</span>`; b.onclick=()=>setTool(t.id); r.appendChild(b); });
-}
-function setTool(id){ if(draft) cancelDraft(); tool=id; updateUI(); render(); }
-function updateUI(){
-  document.querySelectorAll('#rail button').forEach(b=>b.classList.toggle('on',b.dataset.tool===tool));
-  $('btnGrid').classList.toggle('on',showGrid); $('btnOrtho').classList.toggle('on',ortho);
-  $('btnUndo').disabled=!undoStack.length; $('btnRedo').disabled=!redoStack.length;
-  $('draftbar').hidden=!draft; $('ceilH').value=S.H; $('projName').value=S.name;
-  $('zoomLbl').textContent=Math.round(view.s)+' px/м';
-  cv.style.cursor=tool==='pan'?'grab':tool==='select'?'default':'crosshair';
-  renderHud(); setHint();
-}
-function renderHud(){
-  const h=$('hud'); let html='';
-  if(tool==='cable'){
-    html=`<div class="opt"><div class="seg"><button id="cmWall" class="${cableMode==='wall'?'on':''}">По стена</button><button id="cmCeil" class="${cableMode==='ceiling'?'on':''}">По тавана</button></div>
-      <span>h <input type="number" id="cabH" step="5" min="0" max="${cm(S.H)}" value="${cm(cableH)}" ${cableMode==='ceiling'?'disabled':''}> см</span>
-      <select id="cabType">${CABLE_TYPES.map(t=>`<option value="${t.id}" ${t.id===cableType?'selected':''}>${t.label}</option>`).join('')}</select></div>`;
-  } else if(['panel','socket','switch'].includes(tool)){
-    html=`<div class="opt">Височина на монтаж <input type="number" id="plH" step="5" min="0" max="${cm(S.H)}" value="${cm(placeH[tool])}"> см от пода</div>`;
-  } else if(tool==='box'){
-    html=`<div class="opt"><div class="seg"><button id="bpAuto" class="${boxPlace==='auto'?'on':''}">Стена ако е близо</button><button id="bpCeil" class="${boxPlace==='ceiling'?'on':''}">Само таван</button></div><span>h на стена <input type="number" id="plH" step="5" min="0" max="${cm(S.H)}" value="${cm(placeH.box)}"> см</span></div>`;
-  } else if(tool==='wall'){
-    html=`<div class="opt">Стъпка ${cm(GRID)} см · ${ortho?'орто включено':'свободно'} · кликнете ъглите, Enter завършва</div>`;
-  }
-  h.innerHTML=html;
-  if(tool==='cable'){ $('cmWall').onclick=()=>{cableMode='wall';renderHud();render();}; $('cmCeil').onclick=()=>{cableMode='ceiling';renderHud();render();};
-    $('cabH').onchange=e=>{cableH=Math.max(0,Math.min(S.H,(+e.target.value||0)/100));}; $('cabType').onchange=e=>{cableType=e.target.value;render();}; }
-  if(['panel','socket','switch','box'].includes(tool)){ $('plH').onchange=e=>{placeH[tool]=Math.max(0,Math.min(S.H,(+e.target.value||0)/100));}; }
-  if(tool==='box'){ $('bpAuto').onclick=()=>{boxPlace='auto';renderHud();}; $('bpCeil').onclick=()=>{boxPlace='ceiling';renderHud();}; }
-}
-function setHint(extra){
-  const H={select:'Клик: маркира. Влачене: мести елемент / точка. Влачене по празно: мести плана. Delete: изтрива.',
-    wall:draft?'Следващ ъгъл. Enter или 2× клик завършва. Клик върху началото затваря контура.':'Кликнете първия ъгъл на стената.',
-    panel:'Кликнете върху стена, където е таблото.', socket:'Кликнете върху стена за контакта.', switch:'Кликнете върху стена за ключа.',
-    box:'Кликнете върху стена или на тавана за разклонителната кутия.', light:'Кликнете на тавана за лампата.',
-    cable:draft?'Следваща точка по стена или по тавана. Клик върху елемент завършва кабела.':'Започнете от табло, кутия или елемент.',
-    pan:'Влачете, за да местите плана. Колелце: мащаб.'};
-  $('hint').textContent=extra||H[tool]||'';
-}
-function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),1600); }
-
-// ---------- draft handling ----------
 function finishDraft(){
   if(!draft) return;
-  if(draft.type==='wall'){ if(draft.pts.length>=2) addWalls(draft.pts); else toast('Нужни са поне две точки'); }
-  else { if(draft.pts.length>=2) addCable(draft.pts); else toast('Нужни са поне две точки'); }
+  if(draft.pts.length>=2){ if(draft.type==='wall') addWalls(draft.pts); else addCable(draft.pts); }
+  else toast('Нужни са поне две точки');
   draft=null; updateUI(); render();
 }
 function cancelDraft(){ draft=null; updateUI(); render(); }
 function undoPoint(){ if(!draft) return; draft.pts.pop(); if(!draft.pts.length) draft=null; updateUI(); render(); }
 
-// ---------- pointer input ----------
-let isTouchOnly=false;
+// =====================================================================
+// 2D pointer input
+// =====================================================================
 const pointers=new Map(); let gesture=null; let press=null;
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 cv.addEventListener('pointerdown',e=>{
@@ -788,189 +693,722 @@ cv.addEventListener('pointerdown',e=>{
   if(pointers.size===2){ press=null; const [a,b]=[...pointers.values()]; gesture={d0:Math.hypot(a.x-b.x,a.y-b.y),mid0:{x:(a.x+b.x)/2,y:(a.y+b.y)/2},s0:view.s,ox0:view.ox,oy0:view.oy}; return; }
   if(pointers.size>2) return;
   const {sx,sy}=evPos(e); const w=toWorld(sx,sy);
-  if(e.button===1||e.button===2||tool==='pan'||spaceDown){ press={mode:'pan',sx:e.clientX,sy:e.clientY,ox0:view.ox,oy0:view.oy}; cv.style.cursor='grabbing'; return; }
+  if(e.button===1||e.button===2||tool==='pan'||spaceDown){ press={mode:'pan',sx:e.clientX,sy:e.clientY,ox0:view.ox,oy0:view.oy}; return; }
   press={mode:'tool',sx:e.clientX,sy:e.clientY,wx:w.x,wy:w.y,moved:false,pushed:false,drag:null};
-  if(tool==='select'){ press.drag=pickDragTarget(w.x,w.y); if(press.drag){ press.start={...press.drag}; } }
-  if(e.pointerType!=='touch') hover={wx:w.x,wy:w.y,snap:computeSnap(w.x,w.y)};
+  if(tool==='select') press.drag=pickDrag2(w.x,w.y);
+  if(e.pointerType!=='touch') hover={wx:w.x,wy:w.y,snap:computeSnap2(w.x,w.y)};
 });
 cv.addEventListener('pointermove',e=>{
   if(pointers.has(e.pointerId)) pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   if(gesture&&pointers.size>=2){ const [a,b]=[...pointers.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y); const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
-    const ns=Math.max(15,Math.min(600,gesture.s0*d/Math.max(1,gesture.d0))); const r=cv.getBoundingClientRect();
+    const ns=clamp(gesture.s0*d/Math.max(1,gesture.d0),15,600); const r=cv.getBoundingClientRect();
     const wx=(gesture.mid0.x-r.left-gesture.ox0)/gesture.s0, wy=(gesture.mid0.y-r.top-gesture.oy0)/gesture.s0;
-    view.s=ns; view.ox=(mid.x-r.left)-wx*ns; view.oy=(mid.y-r.top)-wy*ns; render(); $('zoomLbl').textContent=Math.round(view.s)+' px/м'; return; }
+    view.s=ns; view.ox=(mid.x-r.left)-wx*ns; view.oy=(mid.y-r.top)-wy*ns; draw2D(); return; }
   const {sx,sy}=evPos(e); const w=toWorld(sx,sy);
   $('coords').textContent=`x ${fmt(w.x)}  y ${fmt(w.y)} м`;
-  if(press&&press.mode==='pan'){ view.ox=press.ox0+(e.clientX-press.sx); view.oy=press.oy0+(e.clientY-press.sy); render(); return; }
+  if(press&&press.mode==='pan'){ view.ox=press.ox0+(e.clientX-press.sx); view.oy=press.oy0+(e.clientY-press.sy); draw2D(); return; }
   if(press&&press.mode==='tool'){
-    const moved=Math.hypot(e.clientX-press.sx,e.clientY-press.sy)>(e.pointerType==='touch'?8:4);
-    if(moved) press.moved=true;
+    if(Math.hypot(e.clientX-press.sx,e.clientY-press.sy)>(e.pointerType==='touch'?8:4)) press.moved=true;
     if(press.moved){
-      if(press.drag){ if(!press.pushed){ pushHistory(); press.pushed=true; } applyDrag(press.drag,w.x,w.y,press); render(); return; }
-      // drag on empty space pans
+      if(press.drag){ if(!press.pushed){ pushHistory(); press.pushed=true; } applyDrag2(press.drag,w.x,w.y,{x:press.wx,y:press.wy}); draw2D(); return; }
       if(!press.panning){ press.panning=true; press.ox0=view.ox-(e.clientX-press.sx); press.oy0=view.oy-(e.clientY-press.sy); }
-      view.ox=press.ox0+(e.clientX-press.sx); view.oy=press.oy0+(e.clientY-press.sy); render(); return;
+      view.ox=press.ox0+(e.clientX-press.sx); view.oy=press.oy0+(e.clientY-press.sy); draw2D(); return;
     }
   }
   if(e.pointerType==='touch'&&!press) return;
-  hover={wx:w.x,wy:w.y,snap:computeSnap(w.x,w.y)}; render();
+  hover={wx:w.x,wy:w.y,snap:computeSnap2(w.x,w.y)}; draw2D();
 });
-function endPointer(e){
+function endPointer2(e){
   const had=pointers.has(e.pointerId); pointers.delete(e.pointerId);
-  if(gesture){ if(pointers.size<2){ gesture=null; } press=null; return; }
-  if(!had) return;
-  if(press&&press.mode==='pan'){ press=null; updateUI(); return; }
-  if(press&&press.mode==='tool'){
-    if(!press.moved){ tap(press.wx,press.wy,e); }
-    else if(press.drag){ commit(); }
-    press=null; render();
-  }
+  if(gesture){ if(pointers.size<2) gesture=null; press=null; return; }
+  if(!had||!press) return;
+  if(press.mode==='tool'){ if(!press.moved) tap2(press.wx,press.wy); else if(press.drag) commit(); }
+  press=null; draw2D();
 }
-cv.addEventListener('pointerup',endPointer); cv.addEventListener('pointercancel',endPointer);
-cv.addEventListener('dblclick',e=>{ if(draft){ // remove the duplicate point added by the 2nd click
-    if(draft.pts.length>=2&&draft.type==='wall'){ const a=draft.pts[draft.pts.length-1],b=draft.pts[draft.pts.length-2]; if(Math.hypot(a.x-b.x,a.y-b.y)<1e-6) draft.pts.pop(); }
-    if(draft.pts.length>=2&&draft.type==='cable'&&samePt(draft.pts[draft.pts.length-1],draft.pts[draft.pts.length-2])) draft.pts.pop();
-    finishDraft(); } });
-cv.addEventListener('wheel',e=>{ e.preventDefault(); const {sx,sy}=evPos(e); const f=Math.exp(-e.deltaY*(e.ctrlKey?0.01:0.0015)); zoomAt(f,sx,sy); $('zoomLbl').textContent=Math.round(view.s)+' px/м'; },{passive:false});
-cv.addEventListener('pointerleave',()=>{ if(!press){ hover=null; render(); } });
-
-function computeSnap(wx,wy){
+cv.addEventListener('pointerup',endPointer2); cv.addEventListener('pointercancel',endPointer2);
+cv.addEventListener('wheel',e=>{ e.preventDefault(); const {sx,sy}=evPos(e); zoomAt(Math.exp(-e.deltaY*(e.ctrlKey?0.01:0.0015)),sx,sy); },{passive:false});
+cv.addEventListener('pointerleave',()=>{ if(!press){ hover=null; draw2D(); } });
+function computeSnap2(wx,wy){
   if(tool==='wall') return snapWallPoint(wx,wy);
   if(tool==='cable') return snapCable(wx,wy);
-  if(TYPES[tool]){ const s=snapDevicePlace(tool,wx,wy); return s.ok?{x:s.x,y:s.y,label:s.label}:{x:wx,y:wy,label:s.label}; }
+  if(TYPES[tool]){ const s=snapDevicePlace(tool,wx,wy); return {x:s.ok?s.x:wx,y:s.ok?s.y:wy,label:s.label}; }
   return null;
 }
-function applyDrag(d,wx,wy,press){
-  if(d.kind==='device'){ const dev=devById(d.id); if(dev) moveDevice(dev,wx,wy); sel={kind:'device',id:d.id}; }
-  else if(d.kind==='wallEnd'){ const w=wallById(d.id); if(!w) return; let x=wx,y=wy; const other=d.end===1?{x:w.x2,y:w.y2}:{x:w.x1,y:w.y1};
-    // snap to other wall endpoints, then ortho, then grid
-    let sn=null; for(const o of S.walls){ if(o.id===w.id) continue; for(const [px,py] of [[o.x1,o.y1],[o.x2,o.y2]]){ if(Math.hypot(px-wx,py-wy)<=thr()*1.3) sn={x:px,y:py}; } }
-    if(sn){ x=sn.x; y=sn.y; } else { if(ortho){ if(Math.abs(wx-other.x)>Math.abs(wy-other.y)) y=other.y; else x=other.x; } x=snapGrid(x); y=snapGrid(y); }
-    if(d.end===1){ w.x1=x; w.y1=y; } else { w.x2=x; w.y2=y; } }
-  else if(d.kind==='wallMove'){ const w=wallById(d.id); if(!w) return; const dx=snapGrid(wx-press.wx), dy=snapGrid(wy-press.wy); w.x1=d.x1+dx; w.y1=d.y1+dy; w.x2=d.x2+dx; w.y2=d.y2+dy; }
-  else if(d.kind==='cablePt'){ const c=cableById(d.id); if(!c) return; const p=c.points[d.idx]; if(!p||p.kind==='device') return;
-    if(p.kind==='wall'){ const w=wallById(p.wallId); const nw=nearestWall(wx,wy,thr()*2); if(nw&&nw.wall.id!==p.wallId){ p.wallId=nw.wall.id; p.t=nw.t; } else if(w){ p.t=projWall(w,wx,wy).t; } }
-    else { const nw=nearestWall(wx,wy,thr()); if(nw){ c.points[d.idx]={kind:'wall',wallId:nw.wall.id,t:nw.t,z:S.H}; } else { p.x=snapGrid(wx); p.y=snapGrid(wy); } } }
-}
-function tap(wx,wy,e){
-  if(tool==='select'){ const h=hitTest(wx,wy); sel=h; commit(); if(h&&window.innerWidth<=860&&e.pointerType!=='touch') {} return; }
-  if(tool==='wall'){ const p=snapWallPoint(wx,wy);
-    if(!draft){ draft={type:'wall',pts:[{x:p.x,y:p.y}]}; }
-    else { const last=draft.pts[draft.pts.length-1]; if(Math.hypot(last.x-p.x,last.y-p.y)<1e-6){ finishDraft(); return; } draft.pts.push({x:p.x,y:p.y}); if(p.close){ finishDraft(); return; } }
-    updateUI(); render(); return; }
+function tap2(wx,wy){
+  if(tool==='select'){ sel=hitTest2(wx,wy); commit(); return; }
+  if(tool==='wall'){ wallTap(snapWallPoint(wx,wy)); return; }
   if(TYPES[tool]){ const s=snapDevicePlace(tool,wx,wy); if(!s.ok){ toast(s.label); return; } addDevice(tool,s); return; }
-  if(tool==='cable'){ const p=snapCable(wx,wy); const pt={kind:p.kind,deviceId:p.deviceId,wallId:p.wallId,t:p.t,z:p.z,x:p.x,y:p.y}; Object.keys(pt).forEach(k=>pt[k]===undefined&&delete pt[k]);
-    if(!draft){ draft={type:'cable',pts:[pt]}; if(p.kind!=='device') toast('Кабелът не започва от елемент. Може да го свържете после.'); }
-    else { const last=draft.pts[draft.pts.length-1]; if(samePt(last,pt)){ finishDraft(); return; } draft.pts.push(pt); if(p.kind==='device'){ finishDraft(); return; } }
-    updateUI(); render(); return; }
+  if(tool==='cable'){ cableTap(snapCable(wx,wy)); }
 }
 
-// ---------- keyboard ----------
+// =====================================================================
+// 3D view (three.js)
+// =====================================================================
+const T3={ok:false};
+let dirty3=true;
+function init3D(){
+  if(typeof THREE==='undefined'||!THREE.OrbitControls) return false;
+  let renderer;
+  try{ renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true}); }catch(e){ return false; }
+  renderer.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  const el=renderer.domElement; el.id='cv3'; $('stage').insertBefore(el,$('labels'));
+  el.addEventListener('contextmenu',e=>e.preventDefault());
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(45,1,0.05,300);
+  camera.position.set(6,10,14);
+  T3.renderer=renderer; T3.scene=scene; T3.camera=camera; T3.el=el;
+  bindPointer3(el);                          // our handlers run before OrbitControls' handlers
+  const controls=new THREE.OrbitControls(camera,el);
+  controls.enableDamping=true; controls.dampingFactor=0.14; controls.screenSpacePanning=true;
+  controls.maxPolarAngle=Math.PI*0.495; controls.minDistance=0.6; controls.maxDistance=80;
+  controls.mouseButtons={LEFT:THREE.MOUSE.ROTATE,MIDDLE:THREE.MOUSE.DOLLY,RIGHT:THREE.MOUSE.PAN};
+  controls.addEventListener('change',()=>{ dirty3=true; });
+  T3.controls=controls;
+  scene.add(new THREE.HemisphereLight(0xffffff,0x8890a0,0.8));
+  const sun=new THREE.DirectionalLight(0xffffff,0.55); sun.position.set(6,14,9); scene.add(sun);
+  const fill=new THREE.DirectionalLight(0xffffff,0.25); fill.position.set(-8,6,-5); scene.add(fill);
+  T3.gStatic=new THREE.Group(); T3.gWalls=new THREE.Group(); T3.gDev=new THREE.Group(); T3.gCab=new THREE.Group(); T3.gHandles=new THREE.Group(); T3.gOver=new THREE.Group();
+  [T3.gStatic,T3.gWalls,T3.gDev,T3.gCab,T3.gHandles,T3.gOver].forEach(g=>scene.add(g));
+  T3.ray=new THREE.Raycaster(); T3.ndc=new THREE.Vector2();
+  T3.G={cyl:new THREE.CylinderGeometry(1,1,1,10,1), sph:new THREE.SphereGeometry(1,16,12), box:new THREE.BoxGeometry(1,1,1)};
+  T3.mats={}; T3.disp=[]; T3.labels=[];
+  T3.UP=new THREE.Vector3(0,1,0);
+  T3.ok=true;
+  applyTheme3();
+  new ResizeObserver(resize3D).observe($('stage'));
+  resize3D();
+  (function loop(){ requestAnimationFrame(loop); if(viewMode!=='3d') return; controls.update(); if(dirty3){ dirty3=false; renderer.render(scene,camera); updateLabels3(); } })();
+  return true;
+}
+const V3=(x,y,z)=>new THREE.Vector3(x,y,z);
+function resize3D(){ if(!T3.ok) return; const r=$('stage').getBoundingClientRect(); if(!r.width||!r.height) return; T3.renderer.setSize(r.width,r.height,false); T3.camera.aspect=r.width/r.height; T3.camera.updateProjectionMatrix(); dirty3=true; }
+function mat3(key,make){ if(!T3.mats[key]) T3.mats[key]=make(); return T3.mats[key]; }
+function lambert(color,extra){ return mat3('l'+color+JSON.stringify(extra||{}),()=>new THREE.MeshLambertMaterial(Object.assign({color},extra||{}))); }
+function applyTheme3(){
+  if(!T3.ok) return; readColors();
+  Object.values(T3.mats).forEach(m=>m.dispose()); T3.mats={};
+  T3.scene.background=new THREE.Color(C.paper);
+  const g=T3.gStatic; g.children.slice().forEach(o=>{ g.remove(o); o.geometry&&o.geometry.dispose(); });
+  const minor=new THREE.GridHelper(60,600,C.gm,C.gm); minor.position.y=0.001;
+  const major=new THREE.GridHelper(60,60,C.gM,C.gM); major.position.y=0.002;
+  g.add(minor,major);
+  const ceil=new THREE.GridHelper(60,120,C.acc,C.acc); ceil.material.transparent=true; ceil.material.opacity=0.16; ceil.material.depthWrite=false; T3.ceilGrid=ceil; g.add(ceil);
+  rebuild3D();
+}
+function clearGroup(g){ g.children.slice().forEach(o=>g.remove(o)); }
+function devFrame3(d){
+  const p=devPos(d);
+  if(d.wallId){ const w=wallById(d.wallId); if(w){ const o=wallOff(w,d.t,d.side,0); const n=wallN(w), s=d.side||1; return {pos:V3(o.x,p.z,o.y), n:V3(n.x*s,0,n.y*s), wall:true}; } }
+  return {pos:V3(p.x,S.H,p.y), n:V3(0,-1,0), wall:false};
+}
+function pt3(p){
+  if(p.kind==='device'){ const d=devById(p.deviceId); if(!d) return V3(0,0,0); const f=devFrame3(d); return f.wall? f.pos.clone().addScaledVector(f.n,0.012) : f.pos.clone().setY(S.H-0.012); }
+  if(p.kind==='wall'){ const w=wallById(p.wallId); if(!w) return V3(0,0,0); const o=wallOff(w,p.t,p.side,0.012); return V3(o.x,Math.min(p.z,S.H-0.012),o.y); }
+  return V3(p.x,S.H-0.012,p.y);
+}
+// cables run vertically first when climbing, horizontally first when descending (the length model is horizontal + vertical)
+function path3(pts){
+  const out=[]; let prev=null, prevZ=0;
+  for(const p of pts){ const q=pt3(p), z=ptPos(p).z;
+    if(prev&&Math.abs(z-prevZ)>CEIL_EPS){ out.push(prevZ<z? V3(prev.x,q.y,prev.z) : V3(q.x,prev.y,q.z)); }
+    out.push(q); prev=q; prevZ=z; }
+  return out;
+}
+function seg3(group,a,b,r,mat,ud){
+  const d=b.clone().sub(a); const len=d.length(); if(len<1e-4) return;
+  const m=new THREE.Mesh(T3.G.cyl,mat); m.scale.set(r,len,r); m.position.copy(a).addScaledVector(d,0.5); m.quaternion.setFromUnitVectors(T3.UP,d.normalize());
+  if(ud) m.userData=ud; group.add(m);
+}
+function ball3(group,p,r,mat,ud){ const m=new THREE.Mesh(T3.G.sph,mat); m.scale.setScalar(r); m.position.copy(p); if(ud) m.userData=ud; group.add(m); return m; }
+function rebuild3D(){
+  if(!T3.ok) return; readColors();
+  T3.disp.forEach(g=>g.dispose()); T3.disp=[];
+  [T3.gWalls,T3.gDev,T3.gCab,T3.gHandles].forEach(clearGroup);
+  T3.labels=[]; document.querySelectorAll('#labels .lbl').forEach(e=>e.remove());
+  const H=S.H;
+  const wallMat=lambert(C.wall3, xray?{transparent:true,opacity:0.28,depthWrite:false}:{});
+  const wallSel=lambert(C.acc, xray?{transparent:true,opacity:0.45,depthWrite:false}:{});
+  const edgeMat=mat3('edge',()=>new THREE.LineBasicMaterial({color:C.wall,transparent:true,opacity:0.55}));
+  for(const w of S.walls){
+    const L=wallLen(w); if(L<0.02) continue; const th=w.th||WALL_T; const isSel=sel&&sel.kind==='wall'&&sel.id===w.id;
+    const geo=new THREE.BoxGeometry(L+th,H,th); T3.disp.push(geo);
+    const m=new THREE.Mesh(geo,isSel?wallSel:wallMat); m.position.set((w.x1+w.x2)/2,H/2,(w.y1+w.y2)/2); m.rotation.y=-Math.atan2(w.y2-w.y1,w.x2-w.x1);
+    m.userData={kind:'wall',id:w.id}; T3.gWalls.add(m);
+    const eg=new THREE.EdgesGeometry(geo); T3.disp.push(eg); const e=new THREE.LineSegments(eg,edgeMat); e.position.copy(m.position); e.rotation.copy(m.rotation); T3.gWalls.add(e);
+  }
+  // devices
+  const inv=mat3('inv',()=>new THREE.MeshBasicMaterial({visible:false}));
+  const halo=mat3('halo',()=>new THREE.MeshBasicMaterial({color:C.acc,transparent:true,opacity:0.35,depthWrite:false}));
+  for(const d of S.devices){
+    const f=devFrame3(d); const g=new THREE.Group(); g.position.copy(f.pos);
+    if(f.wall) g.lookAt(f.pos.clone().add(f.n)); else g.rotation.x=Math.PI/2;   // local +Z points out of the mounting surface
+    const B=(sx,sy,sz,z,col)=>{ const m=new THREE.Mesh(T3.G.box,lambert(col)); m.scale.set(sx,sy,sz); m.position.z=z; g.add(m); return m; };
+    const Cy=(r,h,z,col,extra)=>{ const m=new THREE.Mesh(T3.G.cyl,lambert(col,extra)); m.scale.set(r,h,r); m.rotation.x=Math.PI/2; m.position.z=z; g.add(m); return m; };
+    if(d.type==='panel'){ B(0.34,0.46,0.1,0.05,'#3b434e'); B(0.27,0.36,0.012,0.104,'#68727f'); B(0.2,0.04,0.01,0.112,'#f08a24'); }
+    else if(d.type==='socket'){ B(0.13,0.13,0.008,0.004,'#3b434e'); B(0.11,0.11,0.014,0.012,'#f7f8fa'); Cy(0.04,0.012,0.024,'#2f7fd9'); }
+    else if(d.type==='switch'){ B(0.13,0.13,0.008,0.004,'#3b434e'); B(0.11,0.11,0.014,0.012,'#f7f8fa'); B(0.05,0.075,0.012,0.025,'#d98a2b'); }
+    else if(d.type==='box'){ Cy(0.05,0.04,0.02,'#8d96a2'); Cy(0.052,0.006,0.042,'#aab2bc'); }
+    else if(d.type==='light'){ Cy(0.006,0.16,0.08,'#3b434e'); const b=new THREE.Mesh(T3.G.sph,lambert('#ffd27a',{emissive:'#ffb43a',emissiveIntensity:0.6})); b.scale.setScalar(0.075); b.position.z=0.22; g.add(b); }
+    const isSel=sel&&sel.kind==='device'&&sel.id===d.id;
+    if(isSel){ const h=new THREE.Mesh(T3.G.sph,halo); h.scale.setScalar(0.17); h.position.z=d.type==='light'?0.2:0.04; g.add(h); }
+    const px=new THREE.Mesh(T3.G.sph,inv); px.scale.setScalar(d.type==='panel'?0.26:0.13); px.position.z=d.type==='light'?0.18:0.05; px.userData={kind:'device',id:d.id}; g.add(px);
+    T3.gDev.add(g);
+    addLabel3(d.name, f.wall? f.pos.clone().addScaledVector(f.n,0.08).add(V3(0,d.type==='panel'?0.3:0.1,0)) : f.pos.clone().setY(S.H-(d.type==='light'?0.32:0.08)), isSel);
+  }
+  // cables
+  for(const c of S.cables){
+    const isSel=sel&&sel.kind==='cable'&&sel.id===c.id;
+    const m=lambert(c.color, isSel?{emissive:C.acc,emissiveIntensity:0.45}:{});
+    const P=path3(c.points); const r=isSel?0.016:0.011;
+    for(let i=1;i<P.length;i++){ seg3(T3.gCab,P[i-1],P[i],r,m); seg3(T3.gCab,P[i-1],P[i],0.06,inv,{kind:'cable',id:c.id}); }
+    for(const p of P) ball3(T3.gCab,p,r,m);
+  }
+  // handles for the selection
+  const hm=mat3('handle',()=>new THREE.MeshBasicMaterial({color:C.acc,depthTest:false,transparent:true,opacity:0.9}));
+  if(sel&&sel.kind==='cable'){ const c=cableById(sel.id); if(c) c.points.forEach((p,i)=>{ if(p.kind==='device') return; const b=ball3(T3.gHandles,pt3(p),0.045,hm,{kind:'handle',h:'cablePt',id:c.id,idx:i}); b.renderOrder=10; }); }
+  if(sel&&sel.kind==='wall'){ const w=wallById(sel.id); if(w){ [[w.x1,w.y1,1],[w.x2,w.y2,2]].forEach(([x,y,end])=>{ const b=ball3(T3.gHandles,V3(x,0.03,y),0.09,hm,{kind:'handle',h:'wallEnd',id:w.id,end}); b.renderOrder=10; }); } }
+  overlay3D();
+}
+function addLabel3(text,pos,isSel){
+  const el=document.createElement('div'); el.className='lbl'+(isSel?' sel':''); el.textContent=text; $('labels').appendChild(el);
+  T3.labels.push({el,pos});
+}
+function updateLabels3(){
+  const r=$('stage').getBoundingClientRect(); const cam=T3.camera; const v=new THREE.Vector3();
+  const occRay=T3.occ||(T3.occ=new THREE.Raycaster()); const wallMeshes=T3.gWalls.children.filter(o=>o.isMesh);
+  const dist=cam.position.distanceTo(T3.controls.target);
+  for(const l of T3.labels){
+    if(!showLabels||viewMode!=='3d'){ l.el.style.display='none'; continue; }
+    v.copy(l.pos).project(cam);
+    const dl=cam.position.distanceTo(l.pos); const far=dl>Math.max(14,dist*1.6);
+    if(v.z>1||v.z<-1||far){ l.el.style.display='none'; continue; }
+    if(!xray){ occRay.set(cam.position, l.pos.clone().sub(cam.position).normalize()); occRay.far=dl-0.03;
+      if(occRay.intersectObjects(wallMeshes,false).length){ l.el.style.display='none'; continue; } }
+    l.el.style.display=''; l.el.style.transform=`translate(${((v.x+1)/2*r.width).toFixed(1)}px,${((1-v.y)/2*r.height).toFixed(1)}px) translate(-50%,-150%)`;
+  }
+  const tip=$('tip3');
+  if(T3.tip&&viewMode==='3d'){ v.copy(T3.tip.pos).project(cam); if(v.z<1){ tip.hidden=false; tip.textContent=T3.tip.text; tip.style.transform=`translate(${((v.x+1)/2*r.width).toFixed(1)}px,${((1-v.y)/2*r.height).toFixed(1)}px) translate(14px,-130%)`; } else tip.hidden=true; }
+  else tip.hidden=true;
+}
+// transient overlay: drafts, hover marker, ceiling grid
+let hover3=null;
+function overlay3D(){
+  if(!T3.ok) return; readColors();
+  const g=T3.gOver; g.children.slice().forEach(o=>{ g.remove(o); if(o.userData.own) o.geometry.dispose(); });
+  if(T3.ceilGrid){ T3.ceilGrid.visible=['cable','light','box'].includes(tool); T3.ceilGrid.position.y=S.H; }
+  T3.tip=null;
+  const acc=mat3('accT',()=>new THREE.MeshLambertMaterial({color:C.acc,transparent:true,opacity:0.45,depthWrite:false}));
+  const mk=mat3('mk',()=>new THREE.MeshBasicMaterial({color:C.acc,depthTest:false}));
+  const snap=hover3&&hover3.snap;
+  if(draft&&draft.type==='wall'){
+    const pts=draft.pts.slice(); if(snap) pts.push(snap);
+    for(let i=1;i<pts.length;i++){ const a=pts[i-1], b=pts[i]; const L=Math.hypot(b.x-a.x,b.y-a.y); if(L<0.01) continue;
+      const geo=new THREE.BoxGeometry(L+WALL_T,S.H,WALL_T); const m=new THREE.Mesh(geo,acc); m.userData.own=true; m.position.set((a.x+b.x)/2,S.H/2,(a.y+b.y)/2); m.rotation.y=-Math.atan2(b.y-a.y,b.x-a.x); g.add(m); }
+    draft.pts.forEach(p=>{ const b=ball3(g,V3(p.x,0.02,p.y),0.06,mk); b.renderOrder=11; });
+    if(snap&&draft.pts.length){ const a=draft.pts[draft.pts.length-1]; T3.tip={pos:V3(snap.x,0.05,snap.y),text:fmt(Math.hypot(snap.x-a.x,snap.y-a.y))+' м'+(snap.label?' · '+snap.label:'')}; }
+  }
+  if(draft&&draft.type==='cable'){
+    const pts=draft.pts.slice(); if(snap&&snap.kind) pts.push(cleanPt(snap));
+    const ct=CABLE_TYPES.find(c=>c.id===cableType)||CABLE_TYPES[0];
+    const m=mat3('draftCab'+ct.color,()=>new THREE.MeshBasicMaterial({color:ct.color,transparent:true,opacity:0.85}));
+    const P=path3(pts); for(let i=1;i<P.length;i++) seg3(g,P[i-1],P[i],0.014,m); P.forEach(p=>ball3(g,p,0.02,m));
+  }
+  if(snap){
+    let pos=null;
+    if(snap.kind) pos=pt3(cleanPt(snap));
+    else if(snap.pos3) pos=snap.pos3;
+    else if(snap.x!=null) pos=V3(snap.x,0.02,snap.y);
+    if(pos){ const b=ball3(g,pos,0.035,mk); b.renderOrder=12; if(!T3.tip&&snap.label) T3.tip={pos,text:snap.label}; }
+  }
+  dirty3=true;
+}
+// raycasting helpers
+function cast3(e){ const r=T3.el.getBoundingClientRect(); T3.ndc.set(((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1); T3.ray.setFromCamera(T3.ndc,T3.camera); }
+function hits3(groups){ return T3.ray.intersectObjects(groups,true).filter(h=>h.object.userData&&h.object.userData.kind); }
+function planeHit(y){ const v=new THREE.Vector3(); const pl=new THREE.Plane(new THREE.Vector3(0,1,0),-y); return T3.ray.ray.intersectPlane(pl,v)?v:null; }
+function floorPt(){ const v=planeHit(0); return v?{x:v.x,y:v.z}:null; }
+function ceilPt(){ const v=planeHit(S.H); return v?{x:v.x,y:v.z,dist:v.distanceTo(T3.ray.ray.origin)}:null; }
+function wallInfo(h){
+  const w=wallById(h.object.userData.id); if(!w) return null; const pr=projWall(w,h.point.x,h.point.z);
+  const raw=sideRaw(w,h.point.x,h.point.z); const th=w.th||WALL_T;
+  const side=Math.abs(raw)>th*0.3? (raw<0?-1:1) : sideOf(w,T3.camera.position.x,T3.camera.position.z);
+  return {wall:w,t:pr.t,side,x:pr.x,y:pr.y,hz:clamp(h.point.y,0,S.H)};
+}
+function firstWallHit(){ const h=hits3([T3.gWalls])[0]; return h?wallInfo(h):null; }
+function snapPlace3(kind){
+  const T=TYPES[kind]; const wantWall=T.place==='wall'||(T.place==='any'&&boxPlace==='wall');
+  if(wantWall){
+    const wi=firstWallHit(); if(!wi) return {ok:false,label:'Посочете лицето на стена'};
+    const z=fixDevH?(placeH[kind]??T.z):clamp(Math.round(wi.hz/ZSTEP)*ZSTEP,0,S.H);
+    const o=wallOff(wi.wall,wi.t,wi.side,0.02);
+    return {ok:true,wallId:wi.wall.id,t:wi.t,side:wi.side,x:wi.x,y:wi.y,z,label:'стена '+wi.wall.name+' · h '+cm(z)+' см',pos3:V3(o.x,z,o.y)};
+  }
+  const c=ceilPt(); if(!c) return {ok:false,label:'Посочете тавана'};
+  const x=snapGrid(c.x), y=snapGrid(c.y);
+  return {ok:true,wallId:null,x,y,z:null,label:'таван',pos3:V3(x,S.H-0.02,y)};
+}
+function snapCable3(){
+  const dh=hits3([T3.gDev])[0];
+  if(dh){ const d=devById(dh.object.userData.id); if(d) return {kind:'device',deviceId:d.id,label:TYPES[d.type].label+' '+d.name}; }
+  if(cableMode==='ceiling'){
+    const c=ceilPt();
+    if(c){ const nw=nearestWall(c.x,c.y,0.15); if(nw) return {kind:'wall',wallId:nw.wall.id,t:nw.t,z:S.H,side:sideOf(nw.wall,c.x,c.y),label:wallPtLabel(nw.wall,S.H)};
+      const q=orthoCeil(c.x,c.y); return {kind:'ceiling',x:q.x,y:q.y,label:'таван'}; }
+    const wi=firstWallHit(); if(wi) return {kind:'wall',wallId:wi.wall.id,t:wi.t,z:S.H,side:wi.side,label:wallPtLabel(wi.wall,S.H)};
+    return null;
+  }
+  const wi=firstWallHit();
+  if(wi){
+    let t=wi.t, z=fixCabH?Math.min(cableH,S.H):snapZ(wi.hz);
+    const lp=lastDraftPt();
+    if(ortho&&lp&&!fixCabH){ // keep runs on the same wall horizontal or vertical
+      const lw=lp.kind==='wall'?lp.wallId:(lp.kind==='device'?(devById(lp.deviceId)||{}).wallId:null);
+      if(lw===wi.wall.id){ const q=ptPos(lp); const lt=projWall(wi.wall,q.x,q.y).t; const L=wallLen(wi.wall);
+        if(Math.abs(t-lt)*L<Math.abs(z-q.z)) t=lt; else z=q.z; }
+    }
+    return {kind:'wall',wallId:wi.wall.id,t,z,side:wi.side,label:wallPtLabel(wi.wall,z)};
+  }
+  const c=ceilPt(); if(c){ const q=orthoCeil(c.x,c.y); return {kind:'ceiling',x:q.x,y:q.y,label:'таван'}; }
+  return null;
+}
+function computeSnap3(){
+  if(tool==='wall'){ const f=floorPt(); return f?snapWallPoint3(f.x,f.y):null; }
+  if(tool==='cable') return snapCable3();
+  if(TYPES[tool]){ const s=snapPlace3(tool); return s.ok?{pos3:s.pos3,label:s.label}:{label:s.label}; }
+  return null;
+}
+function snapWallPoint3(x,y){ const keep=view.s; view.s=Math.max(30,dist3PxScale()); const p=snapWallPoint(x,y); view.s=keep; return p; }
+function dist3PxScale(){ const d=T3.camera.position.distanceTo(T3.controls.target); return clamp(900/d,20,300); }
+function pickHit3(){                      // small devices win over the cables that run into them
+  const all=hits3([T3.gDev,T3.gCab,T3.gWalls]); if(!all.length) return null;
+  const dh=all.find(h=>h.object.userData.kind==='device');
+  if(dh&&!all.some(h=>h.object.userData.kind==='wall'&&h.distance<dh.distance-0.05)) return dh;
+  return all[0];
+}
+function pick3(){
+  const h=pickHit3(); if(!h) return null;
+  const u=h.object.userData; return {kind:u.kind,id:u.id};
+}
+function pickDrag3(){
+  const hh=T3.ray.intersectObjects(T3.gHandles.children,false)[0];
+  if(hh){ const u=hh.object.userData; return u.h==='cablePt'?{kind:'cablePt',id:u.id,idx:u.idx}:{kind:'wallEnd',id:u.id,end:u.end}; }
+  if(!sel) return null;
+  const h=pickHit3(); if(!h) return null; const u=h.object.userData;
+  if(sel.kind==='device'&&u.kind==='device'&&u.id===sel.id) return {kind:'device',id:u.id};
+  if(sel.kind==='wall'&&u.kind==='wall'&&u.id===sel.id){ const w=wallById(u.id); const f=floorPt(); if(w&&f) return {kind:'wallMove',id:w.id,x1:w.x1,y1:w.y1,x2:w.x2,y2:w.y2,start:f}; }
+  return null;
+}
+function applyDrag3(d){
+  if(d.kind==='wallEnd'||d.kind==='wallMove'){ const f=floorPt(); if(f) dragWall(d,f.x,f.y,d.start); return; }
+  if(d.kind==='device'){ const dev=devById(d.id); if(!dev) return;
+    if(dev.wallId||TYPES[dev.type].place==='wall'){ const wi=firstWallHit(); if(!wi) return; dev.wallId=wi.wall.id; dev.t=wi.t; dev.side=wi.side; if(!fixDevH) dev.z=clamp(Math.round(wi.hz/ZSTEP)*ZSTEP,0,S.H); }
+    else { const c=ceilPt(); if(c){ dev.x=snapGrid(c.x); dev.y=snapGrid(c.y); } }
+    return; }
+  if(d.kind==='cablePt'){ const c=cableById(d.id); if(!c) return; const p=c.points[d.idx]; if(!p||p.kind==='device') return;
+    if(p.kind==='wall'){ const wi=firstWallHit(); if(!wi) return; p.wallId=wi.wall.id; p.t=wi.t; p.side=wi.side; if(!isCeil(p.z)&&!fixCabH) p.z=clamp(Math.round(wi.hz/ZSTEP)*ZSTEP,0,S.H); }
+    else { const cp=ceilPt(); if(cp){ p.x=snapGrid(cp.x); p.y=snapGrid(cp.y); } } }
+}
+function tap3(){
+  if(tool==='select'){ sel=pick3(); commit(); if(sel&&isTouchOnly&&window.innerWidth<=860) toast('Влачете маркирания елемент, за да го местите'); return; }
+  if(tool==='wall'){ const f=floorPt(); if(f) wallTap(snapWallPoint3(f.x,f.y)); return; }
+  if(TYPES[tool]){ const s=snapPlace3(tool); if(!s.ok){ toast(s.label); return; } addDevice(tool,s); return; }
+  if(tool==='cable'){ const s=snapCable3(); if(s) cableTap(s); else toast('Посочете стена, таван или елемент'); }
+}
+function bindPointer3(el){
+  let p3=null; const down=new Set();
+  el.addEventListener('pointerdown',e=>{
+    down.add(e.pointerId); isTouchOnly=e.pointerType==='touch';
+    if(down.size>1){ if(p3&&p3.pushed) commit(); p3=null; T3.controls.enabled=true; return; }
+    if(e.pointerType==='mouse'&&e.button!==0){ p3=null; return; }
+    cast3(e);
+    const drag=(tool==='select'&&!spaceDown)?pickDrag3():null;
+    p3={id:e.pointerId,x:e.clientX,y:e.clientY,t:performance.now(),drag,moved:false,pushed:false};
+    if(drag){ T3.controls.enabled=false; try{ el.setPointerCapture(e.pointerId); }catch(_){} }
+  });
+  el.addEventListener('pointermove',e=>{
+    if(p3&&p3.id===e.pointerId){
+      if(Math.hypot(e.clientX-p3.x,e.clientY-p3.y)>(e.pointerType==='touch'?10:5)) p3.moved=true;
+      if(p3.drag&&p3.moved){ cast3(e); if(!p3.pushed){ pushHistory(); p3.pushed=true; } applyDrag3(p3.drag); rebuild3D(); }
+      return;
+    }
+    if(e.pointerType==='touch') return;
+    cast3(e); const f=floorPt(); if(f) $('coords').textContent=`x ${fmt(f.x)}  y ${fmt(f.y)} м`;
+    hover3={snap:computeSnap3()}; overlay3D();
+    let over=false; if(tool==='select'){ over=!!(T3.ray.intersectObjects(T3.gHandles.children,false)[0]||hits3([T3.gDev,T3.gCab,T3.gWalls])[0]); }
+    el.style.cursor=tool==='pan'?'grab':tool==='select'?(over?'pointer':'default'):'crosshair';
+  });
+  const up=e=>{
+    down.delete(e.pointerId); if(!p3||p3.id!==e.pointerId) return;
+    const p=p3; p3=null; T3.controls.enabled=true;
+    if(p.drag&&p.moved){ if(p.pushed) commit(); return; }
+    if(!p.moved&&performance.now()-p.t<800&&e.type==='pointerup'){ cast3(e); tap3(); if(e.pointerType==='touch'){ hover3=null; overlay3D(); } }
+  };
+  window.addEventListener('pointerup',up); window.addEventListener('pointercancel',up);
+  el.addEventListener('pointerleave',()=>{ if(!p3){ hover3=null; overlay3D(); } });
+}
+function fit3D(top){
+  if(!T3.ok) return; resize3D(); const b=bounds(); const cx=(b.minx+b.maxx)/2, cy=(b.miny+b.maxy)/2; const size=Math.max(3,b.maxx-b.minx,b.maxy-b.miny);
+  const c=T3.controls, cam=T3.camera; c.target.set(cx,top?0:0.6,cy);
+  const fov=cam.fov*Math.PI/180; const dist=(size*0.66)/Math.tan(fov/2)/Math.min(1,cam.aspect)+1.5;
+  if(top) cam.position.set(cx,dist+S.H,cy+0.001);
+  else { const s=new THREE.Spherical(dist*1.02,0.95,0.55); const off=new THREE.Vector3().setFromSpherical(s); cam.position.copy(c.target).add(off); }
+  cam.lookAt(c.target); c.update(); dirty3=true;
+}
+function orbit3(dAz,dPol){ const c=T3.controls, cam=T3.camera; const off=cam.position.clone().sub(c.target); const s=new THREE.Spherical().setFromVector3(off); s.theta+=dAz; s.phi=clamp(s.phi+dPol,0.02,Math.PI*0.495); off.setFromSpherical(s); cam.position.copy(c.target).add(off); c.update(); dirty3=true; }
+function dolly3(f){ const c=T3.controls, cam=T3.camera; const off=cam.position.clone().sub(c.target); const L=clamp(off.length()/f,c.minDistance,c.maxDistance); off.setLength(L); cam.position.copy(c.target).add(off); c.update(); dirty3=true; }
+
+// =====================================================================
+// wall elevation (unfolded view) in the side panel
+// =====================================================================
+function drawElevation(canvas,w){
+  readColors();
+  const L=wallLen(w), H=S.H; const cw=canvas.clientWidth||280; const pad=28;
+  const sc=Math.min((cw-pad*2)/L,(260-pad*2)/H); const ch=Math.round(H*sc+pad*2);
+  const dpr=window.devicePixelRatio||1; canvas.width=cw*dpr; canvas.height=ch*dpr; canvas.style.height=ch+'px';
+  const g=canvas.getContext('2d'); g.setTransform(dpr,0,0,dpr,0,0);
+  const X=t=>pad+t*L*sc, Y=z=>pad+(H-z)*sc;
+  g.fillStyle=C.paper; g.fillRect(0,0,cw,ch);
+  g.strokeStyle=C.gm; g.lineWidth=1; for(let z=0.5; z<H; z+=0.5){ g.beginPath(); g.moveTo(X(0),Y(z)); g.lineTo(X(1),Y(z)); g.stroke(); }
+  g.strokeStyle=C.wall; g.lineWidth=2; g.strokeRect(X(0),Y(H),L*sc,H*sc);
+  g.fillStyle=C.muted; g.font='10px '+C.mono; g.textAlign='center'; g.textBaseline='top'; g.fillText(fmt(L)+' м',X(.5),Y(0)+6);
+  g.textAlign='right'; g.textBaseline='middle'; g.fillText(cm(H)+'',X(0)-4,Y(H)); g.fillText('0',X(0)-4,Y(0));
+  for(const c of S.cables){ const pts=c.points; const P=pts.map(ptPos);
+    const onWall=i=>{ const p=pts[i]; if(p.kind==='wall') return p.wallId===w.id; if(p.kind==='device'){ const d=devById(p.deviceId); return d&&d.wallId===w.id; } return false; };
+    const tOf=i=>projWall(w,P[i].x,P[i].y).t;
+    g.strokeStyle=c.color; g.lineWidth=2; g.lineCap='round';
+    for(let i=0;i<pts.length;i++){ if(!onWall(i)) continue; const t=tOf(i), z=P[i].z;
+      for(const j of [i-1,i+1]){ if(j<0||j>=pts.length) continue;
+        if(onWall(j)){ if(j>i){ const tj=tOf(j), zj=P[j].z; g.setLineDash([]); g.beginPath(); g.moveTo(X(t),Y(z)); if(Math.abs(zj-z)>CEIL_EPS){ if(z<zj) g.lineTo(X(t),Y(zj)); else g.lineTo(X(tj),Y(z)); } g.lineTo(X(tj),Y(zj)); g.stroke(); } }
+        else if(P[j].z>z+CEIL_EPS||isCeil(P[j].z)){ g.setLineDash([4,3]); g.beginPath(); g.moveTo(X(t),Y(z)); g.lineTo(X(t),Y(H)); g.stroke(); }
+        else { g.setLineDash([4,3]); g.beginPath(); g.moveTo(X(t),Y(z)); g.lineTo(X(clamp(tOf(j),0,1)),Y(z)); g.stroke(); }
+      }
+      g.setLineDash([]); g.fillStyle=C.dev; g.beginPath(); g.arc(X(t),Y(z),3,0,7); g.fill(); g.stroke();
+    }
+  }
+  for(const d of S.devices){ if(d.wallId!==w.id) continue; const p=devPos(d); const x=X(d.t), y=Y(p.z);
+    g.setLineDash([]); g.fillStyle=C.dev; g.strokeStyle=C.fg; g.lineWidth=1.5;
+    if(d.type==='panel'){ g.fillStyle=C.fg; g.fillRect(x-9,y-12,18,24); }
+    else if(d.type==='box'){ g.save(); g.translate(x,y); g.rotate(Math.PI/4); g.fillRect(-5,-5,10,10); g.strokeRect(-5,-5,10,10); g.restore(); }
+    else { g.beginPath(); g.arc(x,y,6,0,7); g.fill(); g.stroke(); }
+    g.fillStyle=C.fg; g.font='10px '+C.mono; g.textAlign='center'; g.textBaseline='top'; g.fillText(d.name,x,y+(d.type==='panel'?14:8));
+    g.fillStyle=C.muted; g.fillText(cm(p.z)+' см',x,y+(d.type==='panel'?26:20));
+  }
+}
+
+// =====================================================================
+// side panel
+// =====================================================================
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function numIn(v){ return parseFloat(String(v).replace(',','.')); }
+function renderSide(){ renderProps(); renderList(); }
+function totalsByType(){ const t={all:0,by:{}}; for(const c of S.cables){ const L=cableLength(c); t.all+=L; t.by[c.type]=(t.by[c.type]||0)+L; } return t; }
+function renderProps(){
+  const el=$('tab-props');
+  if(sel&&sel.kind==='wall'&&!wallById(sel.id)) sel=null;
+  if(sel&&sel.kind==='device'&&!devById(sel.id)) sel=null;
+  if(sel&&sel.kind==='cable'&&!cableById(sel.id)) sel=null;
+  if(!sel){
+    const tot=totalsByType();
+    el.innerHTML=`<h3>Проект</h3>
+      <div class="props"><label>Стени</label><div class="num">${S.walls.length}</div><label>Елементи</label><div class="num">${S.devices.length}</div><label>Кабели</label><div class="num">${S.cables.length}</div>
+      <label>Общо кабел</label><div class="num">${fmt(tot.all)} м</div><label>Таван</label><div class="num">${cm(S.H)} см</div></div>
+      <h3 class="sec">Как да започнете</h3>
+      <p class="small muted">Маркирайте стена, елемент или кабел, за да видите и промените свойствата му. Изберете инструмент от лентата и кликнете в 3D сцената, за да чертаете. Разделът „Списък“ показва метража и проверките.</p>`;
+    return;
+  }
+  if(sel.kind==='wall'){ const w=wallById(sel.id); const devs=S.devices.filter(d=>d.wallId===w.id);
+    el.innerHTML=`<h3>Стена</h3><div class="props">
+      <label for="pName">Име</label><input type="text" id="pName" value="${esc(w.name)}">
+      <label>Дължина</label><div class="num">${fmt(wallLen(w))} м</div>
+      <label for="pTh">Дебелина</label><div><input type="number" id="pTh" step="1" min="5" max="60" value="${cm(w.th||WALL_T)}"> см</div>
+      <label>Елементи</label><div>${devs.length?devs.map(d=>`<span class="pill">${esc(d.name)}</span>`).join(' '):'<span class="muted">няма</span>'}</div>
+      <div class="full row"><button id="pDel" class="danger">Изтрий стената</button></div></div>
+      <h4>Разгънат изглед на стената</h4><canvas id="elev"></canvas>
+      <p class="small muted">Пунктир: кабелът напуска стената към тавана или към друга стена. Височините са в см от пода. Краищата на маркираната стена се влачат.</p>`;
+    $('pName').onchange=e=>{pushHistory();w.name=e.target.value;commit();};
+    $('pTh').onchange=e=>{pushHistory();w.th=Math.max(.05,(numIn(e.target.value)||12)/100);commit();};
+    $('pDel').onclick=deleteSelected;
+    requestAnimationFrame(()=>{ const c=$('elev'); if(c) drawElevation(c,w); });
+    return;
+  }
+  if(sel.kind==='device'){ const d=devById(sel.id); const T=TYPES[d.type]; const p=devPos(d); const w=d.wallId?wallById(d.wallId):null; const cabs=deviceCables(d);
+    el.innerHTML=`<h3>${esc(T.label)}</h3><div class="props">
+      <label for="pName">Име</label><input type="text" id="pName" value="${esc(d.name)}">
+      <label>Място</label><div>${w?'стена '+esc(w.name):'таван'}</div>
+      ${w?`<label for="pZ">Височина</label><div><input type="number" id="pZ" step="5" min="0" max="${cm(S.H)}" value="${cm(p.z)}"> см от пода</div>
+      <label for="pT">По стената</label><div><input type="number" id="pT" step="0.05" min="0" max="${fmt(wallLen(w))}" value="${(d.t*wallLen(w)).toFixed(2)}"> м от началото</div>
+      <label>Лице</label><div><button id="pFlip">Обърни към другата страна</button></div>`
+      :`<label>Позиция</label><div class="num">${fmt(p.x)} ; ${fmt(p.y)} м</div>`}
+      ${d.type==='box'&&w?`<label>Монтаж</label><div><button id="pToCeil">Премести на тавана</button></div>`:''}
+      <label>Кабели</label><div>${cabs.length?cabs.map(c=>`<span class="pill" style="border-color:${c.color}">${esc(c.name)}</span>`).join(' '):'<span class="pill warn">няма</span>'}</div>
+      <div class="full row"><button id="pCable" class="primary">Нов кабел от тук</button><button id="pDel" class="danger">Изтрий</button></div></div>
+      <p class="small muted">Маркиран елемент се мести с влачене. Закачените кабели го следват.</p>`;
+    $('pName').onchange=e=>{pushHistory();d.name=e.target.value;commit();};
+    if(w){ $('pZ').onchange=e=>{pushHistory();d.z=clamp((numIn(e.target.value)||0)/100,0,S.H);commit();};
+      $('pT').onchange=e=>{pushHistory();d.t=clamp((numIn(e.target.value)||0)/wallLen(w),0,1);commit();};
+      $('pFlip').onclick=()=>{pushHistory();d.side=-(d.side||1);commit();}; }
+    if(d.type==='box'&&w){ $('pToCeil').onclick=()=>{pushHistory();d.x=p.x;d.y=p.y;d.wallId=null;d.z=null;commit();}; }
+    $('pCable').onclick=()=>{ tool='cable'; draft={type:'cable',pts:[{kind:'device',deviceId:d.id}]}; updateUI(); render(); closeSide(); toast('Посочете следващата точка на кабела'); };
+    $('pDel').onclick=deleteSelected;
+    return;
+  }
+  if(sel.kind==='cable'){ const c=cableById(sel.id); const a=c.points[0], b=c.points[c.points.length-1];
+    const endName=p=>p.kind==='device'?esc((devById(p.deviceId)||{name:'?'}).name):'<span class="pill warn">отворен</span>';
+    const P=c.points.map(ptPos);
+    el.innerHTML=`<h3>Кабел</h3><div class="props">
+      <label for="pName">Име</label><input type="text" id="pName" value="${esc(c.name)}">
+      <label for="pType">Тип</label><select id="pType">${CABLE_TYPES.map(t=>`<option value="${t.id}" ${t.id===c.type?'selected':''}>${t.label}</option>`).join('')}</select>
+      <label for="pColor">Цвят</label><input type="color" id="pColor" value="${c.color}">
+      <label>Дължина</label><div class="num">${fmt(cableLength(c))} м <span class="muted small">с 10 % резерв ${fmt(cableLength(c)*1.1)} м</span></div>
+      <label>От → до</label><div>${endName(a)} → ${endName(b)}</div>
+      <label for="pAllH">Всички точки по стени</label><div class="row"><input type="number" id="pAllH" step="5" min="0" max="${cm(S.H)}" placeholder="см"><button id="pAllHBtn">Приложи</button></div>
+      <div class="full row"><button id="pRev">Обърни посоката</button><button id="pDel" class="danger">Изтрий</button></div></div>
+      <h4>Точки на трасето</h4><div class="ptlist">
+      ${c.points.map((p,i)=>{ const q=P[i]; const kind=p.kind==='device'?esc((devById(p.deviceId)||{name:'?'}).name):p.kind==='wall'?'стена '+esc((wallById(p.wallId)||{name:'?'}).name):'таван';
+        return `<span class="num muted">${i+1}</span><span>${kind}${p.kind!=='device'?` <span class="muted small num">${fmt(q.x)}; ${fmt(q.y)}</span>`:''}</span><span>${p.kind==='wall'?`<input type="number" data-i="${i}" class="ptz" step="5" min="0" max="${cm(S.H)}" value="${cm(q.z)}" aria-label="Височина на точка ${i+1}"> см`:`<span class="num muted">${cm(q.z)} см</span>`}</span>`; }).join('')}</div>
+      <p class="small muted">Точките на маркирания кабел се влачат: по стена остават на стената, по тавана се местят свободно. Дължината включва вертикалните спускания.</p>`;
+    $('pName').onchange=e=>{pushHistory();c.name=e.target.value;commit();};
+    $('pType').onchange=e=>{pushHistory();c.type=e.target.value;c.color=(CABLE_TYPES.find(t=>t.id===c.type)||{}).color||c.color;commit();};
+    $('pColor').onchange=e=>{pushHistory();c.color=e.target.value;commit();};
+    $('pAllHBtn').onclick=()=>{ const v=numIn($('pAllH').value); if(isNaN(v)) return; pushHistory(); c.points.forEach(p=>{ if(p.kind==='wall') p.z=clamp(v/100,0,S.H); }); commit(); };
+    $('pRev').onclick=()=>{pushHistory();c.points.reverse();commit();};
+    $('pDel').onclick=deleteSelected;
+    el.querySelectorAll('.ptz').forEach(inp=>inp.onchange=e=>{ pushHistory(); const p=c.points[+e.target.dataset.i]; p.z=clamp((numIn(e.target.value)||0)/100,0,S.H); commit(); });
+  }
+}
+function renderList(){
+  const el=$('tab-list'); const tot=totalsByType(); const warns=validate();
+  const selIs=(k,id)=>sel&&sel.kind===k&&sel.id===id?'sel':'';
+  el.innerHTML=`<h3>Проверки</h3>
+    <ul class="warnlist">${warns.length?warns.map((w,i)=>`<li data-w="${i}">${esc(w.msg)}</li>`).join(''):'<li class="ok">Всички елементи са свързани, кабелите имат два края.</li>'}</ul>
+    <h3 class="sec">Кабели по тип</h3>
+    <table class="list"><tr><th>Тип</th><th class="num">м</th><th class="num">+10 %</th></tr>
+    ${Object.entries(tot.by).map(([k,L])=>{const t=CABLE_TYPES.find(x=>x.id===k)||{label:k,color:'#888888'}; return `<tr><td><span class="swatch" style="background:${t.color}"></span>${esc(t.label)}</td><td class="num">${fmt(L)}</td><td class="num">${fmt(L*1.1)}</td></tr>`;}).join('')}
+    <tr><td><b>Общо</b></td><td class="num"><b>${fmt(tot.all)}</b></td><td class="num"><b>${fmt(tot.all*1.1)}</b></td></tr></table>
+    <h3 class="sec">Кабели</h3>
+    <table class="list"><tr><th>Име</th><th>Трасе</th><th class="num">м</th></tr>
+    ${S.cables.map(c=>{const a=c.points[0],b=c.points[c.points.length-1]; const n=p=>p.kind==='device'?esc((devById(p.deviceId)||{name:'?'}).name):'<span class="pill warn">отв.</span>'; return `<tr data-sel="cable:${c.id}" class="${selIs('cable',c.id)}"><td><span class="swatch" style="background:${c.color}"></span>${esc(c.name)}</td><td>${n(a)} → ${n(b)}</td><td class="num">${fmt(cableLength(c))}</td></tr>`;}).join('')||'<tr><td colspan="3" class="muted">Няма кабели</td></tr>'}</table>
+    <h3 class="sec">Елементи</h3>
+    <table class="list"><tr><th>Име</th><th>Вид</th><th>Място</th><th class="num">h см</th></tr>
+    ${S.devices.map(d=>{const p=devPos(d); const w=d.wallId?wallById(d.wallId):null; return `<tr data-sel="device:${d.id}" class="${selIs('device',d.id)}"><td>${esc(d.name)}</td><td>${esc(TYPES[d.type].label)}</td><td>${w?esc(w.name):'таван'}</td><td class="num">${cm(p.z)}</td></tr>`;}).join('')||'<tr><td colspan="4" class="muted">Няма елементи</td></tr>'}</table>`;
+  el.querySelectorAll('[data-sel]').forEach(tr=>tr.onclick=()=>{ const [k,id]=tr.dataset.sel.split(':'); sel={kind:k,id}; showTab('props'); commit(); });
+  el.querySelectorAll('[data-w]').forEach(li=>li.onclick=()=>{ const w=warns[+li.dataset.w]; if(w.sel){ sel=w.sel; showTab('props'); commit(); } });
+}
+function showTab(name){ document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===name)); ['props','list','help'].forEach(t=>$('tab-'+t).hidden=t!==name); }
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+function closeSide(){ $('side').classList.remove('open'); }
+$('btnSide').onclick=()=>{ $('side').classList.toggle('open'); };
+$('btnSideClose').onclick=closeSide;
+
+// =====================================================================
+// tool rail, HUD, hints
+// =====================================================================
+function buildRail(){
+  const r=$('rail'); r.innerHTML='';
+  TOOLS.forEach(t=>{ if(t.id==='pan'){ const g=document.createElement('div'); g.className='gap'; r.appendChild(g); }
+    const b=document.createElement('button'); b.dataset.tool=t.id; b.title=t.label+' ('+t.key+')'; b.setAttribute('aria-label',t.label);
+    b.innerHTML=`<span class="k">${t.key}</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="${t.icon}"/></svg><span class="t">${t.label}</span>`; b.onclick=()=>setTool(t.id); r.appendChild(b); });
+}
+function setTool(id){ if(draft) draft=null; tool=id; hover=null; hover3=null;
+  if(T3.ok){ T3.controls.mouseButtons.LEFT=id==='pan'?THREE.MOUSE.PAN:THREE.MOUSE.ROTATE; T3.controls.touches.ONE=id==='pan'?THREE.TOUCH.PAN:THREE.TOUCH.ROTATE; }
+  updateUI(); render(); }
+function updateUI(){
+  document.querySelectorAll('#rail button').forEach(b=>b.classList.toggle('on',b.dataset.tool===tool));
+  $('vm3').classList.toggle('on',viewMode==='3d'); $('vm2').classList.toggle('on',viewMode==='2d'); $('vm3').disabled=!T3.ok;
+  $('btnOrtho').classList.toggle('on',ortho); $('btnXray').classList.toggle('on',xray); $('btnLbl').classList.toggle('on',showLabels);
+  $('btnTop').hidden=viewMode!=='3d'; $('btnXray').hidden=viewMode!=='3d';
+  $('btnUndo').disabled=!undoStack.length; $('btnRedo').disabled=!redoStack.length;
+  $('draftbar').hidden=!draft; if(document.activeElement!==$('ceilH')) $('ceilH').value=cm(S.H); if(document.activeElement!==$('projName')) $('projName').value=S.name;
+  cv.style.cursor=tool==='pan'?'grab':tool==='select'?'default':'crosshair';
+  renderHud(); setHint();
+}
+function renderHud(){
+  const h=$('hud'); const is3=viewMode==='3d'; let html='';
+  const hIn=(id,val,dis)=>`<input type="number" id="${id}" step="5" min="0" max="${cm(S.H)}" value="${cm(val)}" ${dis?'disabled':''} aria-label="Височина в см"> см`;
+  if(tool==='cable'){
+    html=`<div class="opt"><div class="seg"><button id="cmWall" class="${cableMode==='wall'?'on':''}">По стена</button><button id="cmCeil" class="${cableMode==='ceiling'?'on':''}">По тавана</button></div>
+      ${cableMode==='wall'?(is3?`<label><input type="checkbox" id="fixCab" ${fixCabH?'checked':''}> фиксирана h</label> ${hIn('cabH',cableH,!fixCabH)}`:`<span>h ${hIn('cabH',cableH)}</span>`):''}
+      <select id="cabType" aria-label="Тип кабел">${CABLE_TYPES.map(t=>`<option value="${t.id}" ${t.id===cableType?'selected':''}>${t.label}</option>`).join('')}</select></div>`;
+  } else if(['panel','socket','switch'].includes(tool)){
+    html=`<div class="opt"><span>Височина ${hIn('plH',placeH[tool],is3&&!fixDevH)} от пода</span>${is3?`<label><input type="checkbox" id="byClick" ${fixDevH?'':'checked'}> по клика</label>`:''}</div>`;
+  } else if(tool==='box'){
+    html=`<div class="opt"><div class="seg"><button id="bpCeil" class="${boxPlace==='ceiling'?'on':''}">На тавана</button><button id="bpWall" class="${boxPlace==='wall'?'on':''}">На стена</button></div>
+      ${boxPlace==='wall'?`<span>h ${hIn('plH',placeH.box,is3&&!fixDevH)}</span>${is3?`<label><input type="checkbox" id="byClick" ${fixDevH?'':'checked'}> по клика</label>`:''}`:''}</div>`;
+  } else if(tool==='wall'){
+    html=`<div class="opt">Стъпка ${cm(GRID)} см · ${ortho?'орто':'свободно'} · кликнете ъглите по пода, Enter завършва</div>`;
+  }
+  h.innerHTML=html;
+  const on=(id,ev,fn)=>{ const e=$(id); if(e) e[ev]=fn; };
+  on('cmWall','onclick',()=>{cableMode='wall';renderHud();render();}); on('cmCeil','onclick',()=>{cableMode='ceiling';renderHud();render();});
+  on('fixCab','onchange',e=>{fixCabH=e.target.checked;renderHud();});
+  on('cabH','onchange',e=>{cableH=clamp((numIn(e.target.value)||0)/100,0,S.H);});
+  on('cabType','onchange',e=>{cableType=e.target.value;render();});
+  on('plH','onchange',e=>{placeH[tool]=clamp((numIn(e.target.value)||0)/100,0,S.H);});
+  on('byClick','onchange',e=>{fixDevH=!e.target.checked;renderHud();});
+  on('bpCeil','onclick',()=>{boxPlace='ceiling';renderHud();render();}); on('bpWall','onclick',()=>{boxPlace='wall';renderHud();render();});
+}
+function setHint(){
+  const is3=viewMode==='3d';
+  const H={select:is3?'Клик маркира. Влачене върти камерата, десен бутон мести, колелце приближава. Маркиран елемент или точка се влачи.':'Клик маркира. Влачене мести елемент или точка. Влачене по празно мести плана.',
+    wall:draft?'Следващ ъгъл. Enter или повторен клик завършва. Клик върху началото затваря контура.':'Кликнете първия ъгъл на стената по пода.',
+    panel:'Кликнете върху лицето на стена, където е таблото.', socket:'Кликнете върху стена за контакта.', switch:'Кликнете върху стена за ключа.',
+    box:boxPlace==='wall'?'Кликнете върху стена за кутията.':'Кликнете на тавана за кутията.', light:'Кликнете на тавана за лампата.',
+    cable:draft?(cableMode==='wall'?'Следваща точка по стена. Tab превключва към тавана. Клик върху елемент завършва.':'Следваща точка по тавана. Tab превключва към стена. Клик върху елемент завършва.'):'Започнете кабела от табло, кутия или елемент.',
+    pan:'Влачете, за да местите изгледа.'};
+  $('hint').textContent=H[tool]||'';
+}
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),1800); }
+
+// =====================================================================
+// view switching
+// =====================================================================
+function setView(mode){
+  if(mode==='3d'&&!T3.ok){ toast('3D не е наличен в този браузър'); mode='2d'; }
+  const first2D=viewMode!=='2d'&&mode==='2d'&&!setView._fitted2;
+  viewMode=mode; cv.hidden=mode!=='2d'; if(T3.el) T3.el.hidden=mode!=='3d'; $('labels').hidden=mode!=='3d';
+  hover=null; hover3=null; savePref();
+  if(mode==='2d'){ resize2D(); if(first2D){ fit2D(); setView._fitted2=true; } }
+  else { resize3D(); }
+  rebuild(); updateUI();
+}
+
+// =====================================================================
+// keyboard
+// =====================================================================
 window.addEventListener('keydown',e=>{
-  const inField=['INPUT','SELECT','TEXTAREA'].includes(document.activeElement&&document.activeElement.tagName);
-  if(e.key==='Escape'){ if($('modal').classList.contains('show')){ closeModal(); return; } if(draft) cancelDraft(); else { sel=null; commit(); } if(inField) document.activeElement.blur(); return; }
-  if(inField) return;
+  const ae=document.activeElement; const inField=ae&&['INPUT','SELECT','TEXTAREA'].includes(ae.tagName);
+  if(e.key==='Escape'){ if($('modal').classList.contains('show')){ closeModal(); return; } if(inField){ ae.blur(); return; } if(draft) cancelDraft(); else { sel=null; commit(); } return; }
+  if(inField||$('modal').classList.contains('show')) return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){ e.preventDefault(); e.shiftKey?redo():undo(); return; }
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){ e.preventDefault(); redo(); return; }
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
   if(e.key==='Enter'){ if(draft){ e.preventDefault(); finishDraft(); } return; }
-  if(e.key==='Backspace'){ if(draft){ e.preventDefault(); undoPoint(); return; } }
+  if(e.key==='Tab'&&tool==='cable'){ e.preventDefault(); cableMode=cableMode==='wall'?'ceiling':'wall'; renderHud(); setHint(); render(); toast(cableMode==='wall'?'Кабел по стена':'Кабел по тавана'); return; }
+  if(e.key==='Backspace'&&draft){ e.preventDefault(); undoPoint(); return; }
   if(e.key==='Delete'||e.key==='Backspace'){ if(sel){ e.preventDefault(); deleteSelected(); } return; }
-  if(e.key===' '){ spaceDown=true; cv.style.cursor='grab'; e.preventDefault(); return; }
-  if(e.key==='+'||e.key==='='){ zoomAt(1.2,cv.clientWidth/2,cv.clientHeight/2); updateUI(); return; }
-  if(e.key==='-'){ zoomAt(1/1.2,cv.clientWidth/2,cv.clientHeight/2); updateUI(); return; }
+  if(e.key===' '){ spaceDown=true; e.preventDefault(); return; }
+  if(e.key==='+'||e.key==='='){ zoomBtn(1.2); return; }
+  if(e.key==='-'||e.key==='_'){ zoomBtn(1/1.2); return; }
+  if(e.key==='3'){ setView('3d'); return; } if(e.key==='2'){ setView('2d'); return; }
+  if(e.key.startsWith('Arrow')){ e.preventDefault(); const k=e.key.slice(5);
+    if(viewMode==='3d'&&T3.ok){ if(k==='Left') orbit3(-0.2,0); if(k==='Right') orbit3(0.2,0); if(k==='Up') orbit3(0,-0.12); if(k==='Down') orbit3(0,0.12); }
+    else { if(k==='Left') view.ox+=40; if(k==='Right') view.ox-=40; if(k==='Up') view.oy+=40; if(k==='Down') view.oy-=40; draw2D(); }
+    return; }
   const k=e.key.toUpperCase();
+  if(k==='F'){ fitBtn(e.shiftKey); return; }
+  if(e.shiftKey) return;
   const t=TOOLS.find(t=>t.key===k); if(t){ setTool(t.id); return; }
-  if(k==='G'){ showGrid=!showGrid; updateUI(); render(); } if(k==='O'){ ortho=!ortho; updateUI(); render(); } if(k==='F'){ fitView(); updateUI(); }
-  if(e.key==='ArrowLeft'){ view.ox+=40; render(); } if(e.key==='ArrowRight'){ view.ox-=40; render(); } if(e.key==='ArrowUp'){ view.oy+=40; render(); } if(e.key==='ArrowDown'){ view.oy-=40; render(); }
+  if(k==='G'){ showGrid=!showGrid; if(T3.ok){ T3.gStatic.children.forEach((o,i)=>{ if(o!==T3.ceilGrid) o.visible=showGrid; }); dirty3=true; } draw2D(); }
+  if(k==='O'){ ortho=!ortho; updateUI(); }
+  if(k==='X'){ toggleXray(); }
+  if(k==='N'){ toggleLabels(); }
 });
-window.addEventListener('keyup',e=>{ if(e.key===' '){ spaceDown=false; updateUI(); } });
+window.addEventListener('keyup',e=>{ if(e.key===' ') spaceDown=false; });
 
-// ---------- header buttons ----------
+// =====================================================================
+// buttons, modal, import/export
+// =====================================================================
+function zoomBtn(f){ if(viewMode==='3d'&&T3.ok) dolly3(f); else zoomAt(f,cv.clientWidth/2,cv.clientHeight/2); }
+function fitBtn(top){ if(viewMode==='3d'&&T3.ok) fit3D(top); else fit2D(); }
+function toggleXray(){ xray=!xray; savePref(); rebuild(); updateUI(); }
+function toggleLabels(){ showLabels=!showLabels; savePref(); dirty3=true; draw2D(); updateUI(); }
+$('vm3').onclick=()=>setView('3d'); $('vm2').onclick=()=>setView('2d');
 $('btnFinish').onclick=finishDraft; $('btnCancel').onclick=cancelDraft; $('btnUndoPt').onclick=undoPoint;
-$('btnUndo').onclick=undo; $('btnRedo').onclick=redo; $('btnFit').onclick=()=>{fitView();updateUI();};
-$('btnGrid').onclick=()=>{showGrid=!showGrid;updateUI();render();}; $('btnOrtho').onclick=()=>{ortho=!ortho;updateUI();render();};
-$('zoomIn').onclick=()=>{zoomAt(1.2,cv.clientWidth/2,cv.clientHeight/2);updateUI();}; $('zoomOut').onclick=()=>{zoomAt(1/1.2,cv.clientWidth/2,cv.clientHeight/2);updateUI();};
-$('ceilH').onchange=e=>{ pushHistory(); S.H=Math.max(2,Math.min(5,+e.target.value||2.6)); commit(); };
+$('btnUndo').onclick=undo; $('btnRedo').onclick=redo;
+$('btnFit').onclick=()=>fitBtn(false); $('btnTop').onclick=()=>fitBtn(true);
+$('btnXray').onclick=toggleXray; $('btnLbl').onclick=toggleLabels;
+$('btnOrtho').onclick=()=>{ ortho=!ortho; updateUI(); };
+$('zoomIn').onclick=()=>zoomBtn(1.25); $('zoomOut').onclick=()=>zoomBtn(1/1.25);
+$('ceilH').onchange=e=>{ pushHistory(); S.H=clamp((numIn(e.target.value)||260)/100,2,5); S.devices.forEach(d=>{ if(d.z!=null) d.z=Math.min(d.z,S.H); }); commit(); };
 $('projName').onchange=e=>{ S.name=e.target.value; commit(); };
-$('btnNew').onclick=()=>{ openModal(`<h2>Нов проект</h2><p class="muted">Текущият план ще бъде заменен. Може да го върнете с „Отмени“.</p><div class="row"><button id="mOk" class="primary">Започни на чисто</button><button id="mNo">Отказ</button></div>`); $('mOk').onclick=()=>{ pushHistory(); S=emptyState(); sel=null; draft=null; commit(); closeModal(); fitView(); }; $('mNo').onclick=closeModal; };
-$('btnSample').onclick=()=>{ pushHistory(); S=sampleProject(); sel=null; draft=null; commit(); fitView(); toast('Зареден е примерният апартамент'); };
-$('btnExport').onclick=()=>{ const j=JSON.stringify(S,null,1); openModal(`<h2>Запази проекта</h2><p class="muted small">Копирайте текста или свалете файла. Същият текст се отваря с „Отвори“.</p><textarea id="mTxt" readonly>${esc(j)}</textarea><div class="row"><button id="mCopy" class="primary">Копирай</button><a id="mDl" download="${esc(S.name||'proekt')}.json"><button>Свали .json</button></a><button id="mNo">Затвори</button></div>`);
-  $('mDl').href='data:application/json;charset=utf-8,'+encodeURIComponent(j);
-  $('mCopy').onclick=()=>{ const ta=$('mTxt'); navigator.clipboard&&navigator.clipboard.writeText(j).then(()=>toast('Копирано'),()=>{ta.select();toast('Маркирано – натиснете Ctrl+C');}); }; $('mNo').onclick=closeModal; };
-$('btnImport').onclick=()=>{ openModal(`<h2>Отвори проект</h2><p class="muted small">Поставете JSON от „Запази“ или изберете файл.</p><input type="file" id="mFile" accept="application/json,.json"><textarea id="mTxt" placeholder="{ ... }"></textarea><div class="row"><button id="mOk" class="primary">Зареди</button><button id="mNo">Отказ</button></div>`);
-  const apply=txt=>{ try{ const o=JSON.parse(txt); if(!o||!Array.isArray(o.walls)) throw 0; pushHistory(); S=Object.assign(emptyState(),o); sel=null; draft=null; commit(); closeModal(); fitView(); toast('Зареден'); }catch(e){ toast('Невалиден JSON'); } };
-  $('mFile').onchange=e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>apply(r.result); r.readAsText(f); };
-  $('mOk').onclick=()=>apply($('mTxt').value); $('mNo').onclick=closeModal; };
-$('btnPng').onclick=()=>{ const url=cv.toDataURL('image/png'); openModal(`<h2>Снимка на плана</h2><p class="muted small">Задръжте или десен клик върху картинката, за да я запазите.</p><img src="${url}" alt="План"><div class="row"><a id="mDl" download="${esc(S.name||'plan')}.png" href="${url}"><button class="primary">Свали .png</button></a><button id="mNo">Затвори</button></div>`); $('mNo').onclick=closeModal; };
 function openModal(html){ $('modalBox').innerHTML=html; $('modal').classList.add('show'); }
 function closeModal(){ $('modal').classList.remove('show'); }
 $('modal').addEventListener('click',e=>{ if(e.target.id==='modal') closeModal(); });
+$('btnNew').onclick=()=>{ openModal(`<h2>Нов проект</h2><p class="muted">Текущият план ще бъде заменен с празен. Може да го върнете с „Отмени“.</p><div class="row"><button id="mOk" class="primary">Започни на чисто</button><button id="mNo">Отказ</button></div>`);
+  $('mOk').onclick=()=>{ pushHistory(); S=emptyState(); sel=null; draft=null; closeModal(); commit(); fitBtn(false); setTool('wall'); }; $('mNo').onclick=closeModal; };
+$('btnSample').onclick=()=>{ pushHistory(); S=sampleProject(); sel=null; draft=null; commit(); fitBtn(false); toast('Зареден е примерният апартамент'); };
+$('btnExport').onclick=()=>{ const j=JSON.stringify(S,null,1); openModal(`<h2>Запази проекта</h2><p class="muted small">Копирайте текста или свалете файла. Същият текст се отваря с „Отвори“.</p><textarea id="mTxt" readonly>${esc(j)}</textarea><div class="row"><button id="mCopy" class="primary">Копирай</button><a id="mDl" download="${esc(S.name||'proekt')}.json"><button>Свали .json</button></a><button id="mNo">Затвори</button></div>`);
+  $('mDl').href='data:application/json;charset=utf-8,'+encodeURIComponent(j);
+  $('mCopy').onclick=()=>{ const ta=$('mTxt'); const fb=()=>{ ta.focus(); ta.select(); toast('Текстът е маркиран. Натиснете Ctrl+C'); };
+    try{ navigator.clipboard.writeText(j).then(()=>toast('Копирано'),fb); }catch(_){ fb(); } }; $('mNo').onclick=closeModal; };
+$('btnImport').onclick=()=>{ openModal(`<h2>Отвори проект</h2><p class="muted small">Поставете JSON от „Запази“ или изберете файл.</p><input type="file" id="mFile" accept="application/json,.json"><textarea id="mTxt" placeholder="{ ... }"></textarea><div class="row"><button id="mOk" class="primary">Зареди</button><button id="mNo">Отказ</button></div>`);
+  const apply=txt=>{ try{ const o=JSON.parse(txt); if(!o||!Array.isArray(o.walls)) throw 0; pushHistory(); S=Object.assign(emptyState(),o); sel=null; draft=null; closeModal(); commit(); fitBtn(false); toast('Проектът е зареден'); }catch(e){ toast('Текстът не е валиден проект'); } };
+  $('mFile').onchange=e=>{ const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>apply(r.result); r.readAsText(f); };
+  $('mOk').onclick=()=>apply($('mTxt').value); $('mNo').onclick=closeModal; };
+$('btnPng').onclick=()=>{ let url;
+  if(viewMode==='3d'&&T3.ok){ T3.renderer.render(T3.scene,T3.camera); url=T3.el.toDataURL('image/png'); } else url=cv.toDataURL('image/png');
+  openModal(`<h2>Снимка на изгледа</h2><p class="muted small">Задръжте или десен клик върху картинката, за да я запазите.</p><img src="${url}" alt="Изглед на инсталацията"><div class="row"><a download="${esc(S.name||'plan')}.png" href="${url}"><button class="primary">Свали .png</button></a><button id="mNo">Затвори</button></div>`); $('mNo').onclick=closeModal; };
 
-// ---------- sample project ----------
+// =====================================================================
+// sample project: 48 m² two-room flat (plan points sit slightly inside the room the item faces)
+// =====================================================================
 function sampleProject(){
   const st=emptyState(); st.name='Апартамент 48 м² · пример'; st.H=2.6; const saved=S; S=st;
-  const W=(x1,y1,x2,y2)=>{ const w={id:uid('w'),name:nextName('wall','С'),x1,y1,x2,y2,th:WALL_T}; st.walls.push(w); return w; };
-  // outer shell 8 x 6
-  W(0,0,8,0); W(8,0,8,6); W(8,6,0,6); W(0,6,0,0);
-  // interior: living/bedroom split, kitchen, bath, hall
+  const W=(x1,y1,x2,y2,name)=>{ const w={id:uid('w'),name:name||nextName('wall','С'),x1,y1,x2,y2,th:WALL_T}; st.walls.push(w); return w; };
+  W(0,0,8,0); W(8,0,8,6); W(8,6,0,6); W(0,6,0,0);           // outer shell 8 × 6 m
   W(4.5,0,4.5,6); W(0,3.2,4.5,3.2); W(4.5,3.5,8,3.5); W(6.3,3.5,6.3,6);
-  const D=(type,x,y,z,name)=>{ const nw=nearestWall(x,y,0.25); const T=TYPES[type]; const d={id:uid('d'),type,name:name||nextName(type,T.short),wallId:null,x,y,z:z==null?null:z};
-    if(nw&&T.place!=='ceiling'){ d.wallId=nw.wall.id; d.t=nw.t; d.x=nw.x; d.y=nw.y; } st.devices.push(d); return d; };
-  const panel=D('panel',8,4.3,1.5,'Табло');
-  const rk1=D('box',7.2,3.9,null,'РК1');        // hall ceiling
-  const rk2=D('box',2.2,1.4,null,'РК2');        // living ceiling
-  const rk3=D('box',6.2,1.6,null,'РК3');        // kitchen ceiling
-  const rk4=D('box',2.2,4.6,null,'РК4');        // bedroom ceiling
-  const lHall=D('light',7.2,4.8,null,'Л хол'), lLiv=D('light',2.2,1.6,null,'Л дневна'), lKit=D('light',6.2,1.8,null,'Л кухня'), lBed=D('light',2.2,4.6,null,'Л спалня'), lBath=D('light',5.4,4.8,null,'Л баня');
-  const swLiv=D('switch',4.5,2.8,1.1,'Кл дневна'), swBed=D('switch',4.5,3.6,1.1,'Кл спалня'), swKit=D('switch',4.5,0.6,1.1,'Кл кухня'), swHall=D('switch',8,5.6,1.1,'Кл хол');
-  const k1=D('socket',1.2,0,0.3,'К1'), k2=D('socket',3.5,0,0.3,'К2'), k3=D('socket',0,2.2,0.3,'К3'), k4=D('socket',0,4.6,0.3,'К4'), k5=D('socket',3.6,6,0.3,'К5');
-  const kk1=D('socket',5.2,0,1.1,'К кухня 1'), kk2=D('socket',6.4,0,1.1,'К кухня 2'), kp=D('socket',7.4,0,0.3,'К печка'), kb=D('socket',4.5,4.2,1.3,'К бойлер');
+  const D=(type,x,y,z,name)=>{ const T=TYPES[type]; const auto=nextName(type,T.short); const d={id:uid('d'),type,name:name||auto,wallId:null,x,y,z:z==null?null:z,side:1};
+    if(T.place!=='ceiling'&&z!=null){ const nw=nearestWall(x,y,0.3); if(nw){ d.wallId=nw.wall.id; d.t=nw.t; d.side=sideOf(nw.wall,x,y); d.x=nw.x; d.y=nw.y; } }
+    st.devices.push(d); return d; };
+  const panel=D('panel',7.95,4.3,1.5,'Табло');
+  const rk1=D('box',7.2,3.9,null,'РК1'), rk2=D('box',2.2,1.4,null,'РК2'), rk3=D('box',6.2,1.6,null,'РК3'), rk4=D('box',2.2,4.4,null,'РК4');
+  const lHall=D('light',7.2,4.8,null,'Л антре'), lLiv=D('light',2.2,1.9,null,'Л дневна'), lKit=D('light',6.2,2.2,null,'Л кухня'), lBed=D('light',2.2,4.9,null,'Л спалня'), lBath=D('light',5.4,4.8,null,'Л баня');
+  const swLiv=D('switch',4.45,2.8,1.1,'Кл дневна'), swBed=D('switch',4.45,3.6,1.1,'Кл спалня'), swKit=D('switch',4.55,0.6,1.1,'Кл кухня'), swHall=D('switch',7.95,5.6,1.1,'Кл антре');
+  const k1=D('socket',1.2,0.05,0.3,'К1'), k2=D('socket',3.5,0.05,0.3,'К2'), k3=D('socket',0.05,2.2,0.3,'К3'), k4=D('socket',0.05,4.6,0.3,'К4'), k5=D('socket',3.6,5.95,0.3,'К5');
+  const kk1=D('socket',5.2,0.05,1.1,'К кухня 1'), kk2=D('socket',6.4,0.05,1.1,'К кухня 2'), kp=D('socket',7.4,0.05,0.3,'К печка'), kb=D('socket',4.55,4.2,1.3,'К бойлер');
   const dev=d=>({kind:'device',deviceId:d.id});
-  const wall=(x,y,z)=>{ const nw=nearestWall(x,y,0.3); return nw?{kind:'wall',wallId:nw.wall.id,t:nw.t,z}:{kind:'ceiling',x,y}; };
+  const wall=(x,y,z)=>{ const nw=nearestWall(x,y,0.3); return nw?{kind:'wall',wallId:nw.wall.id,t:nw.t,z,side:sideOf(nw.wall,x,y)}:{kind:'ceiling',x,y}; };
   const ceil=(x,y)=>({kind:'ceiling',x,y});
   const Cb=(type,name,pts)=>{ const ct=CABLE_TYPES.find(c=>c.id===type); st.cables.push({id:uid('c'),name,type,color:ct.color,points:pts}); };
-  // panel -> hall box (up the wall, across the ceiling)
-  Cb('3x2.5','Каб 1',[dev(panel),wall(8,4.3,2.3),wall(8,3.9,2.6),dev(rk1)]);
-  Cb('3x1.5','Каб 2',[dev(panel),wall(8,4.3,2.3),wall(8,3.9,2.6),dev(rk1)]);
-  // hall box -> living box, kitchen box, bedroom box (ceiling)
-  Cb('3x2.5','Каб 3',[dev(rk1),ceil(7.2,3.3),ceil(4.6,3.3),ceil(2.2,3.3),dev(rk2)]);
-  Cb('3x1.5','Каб 4',[dev(rk1),ceil(6.2,3.9),ceil(6.2,3.3),dev(rk3)]);
-  Cb('3x2.5','Каб 5',[dev(rk1),ceil(6.2,3.9),ceil(6.2,3.3),dev(rk3)]);
-  Cb('3x2.5','Каб 6',[dev(rk1),ceil(7.2,3.3),ceil(4.6,3.3),ceil(4.6,4.6),dev(rk4)]);
-  Cb('3x1.5','Каб 7',[dev(rk1),ceil(7.2,3.3),ceil(4.6,3.3),ceil(4.6,4.6),dev(rk4)]);
-  // living room sockets
-  Cb('3x2.5','Каб 8',[dev(rk2),ceil(1.2,1.4),wall(1.2,0,2.6),dev(k1)]);
-  Cb('3x2.5','Каб 9',[dev(rk2),ceil(3.5,1.4),wall(3.5,0,2.6),dev(k2)]);
-  Cb('3x2.5','Каб 10',[dev(rk2),ceil(0,1.4),wall(0,1.4,2.6),wall(0,2.2,2.3),dev(k3)]);
-  // living light & switch
+  // feeders from the panel
+  Cb('3x2.5','Каб 1',[dev(panel),wall(7.95,4.3,2.6),ceil(7.6,4.3),ceil(7.6,3.9),dev(rk1)]);
+  Cb('3x1.5','Каб 2',[dev(panel),wall(7.95,4.25,2.6),ceil(7.55,4.25),ceil(7.55,3.9),dev(rk1)]);
+  Cb('3x6','Каб печка',[dev(panel),wall(7.95,4.35,2.3),wall(7.95,3.6,2.3),wall(7.95,3.4,2.3),wall(7.95,0.15,2.3),wall(7.4,0.05,2.3),dev(kp)]);
+  Cb('3x4','Каб бойлер',[dev(panel),wall(7.95,4.2,2.2),wall(7.95,3.6,2.2),wall(6.4,3.55,2.2),wall(6.2,3.55,2.2),wall(4.55,3.6,2.2),wall(4.55,4.2,2.2),dev(kb)]);
+  // junction box to junction box over the ceiling
+  Cb('3x2.5','Каб 3',[dev(rk1),ceil(7.2,3.3),ceil(2.2,3.3),dev(rk2)]);
+  Cb('3x1.5','Каб 4',[dev(rk1),ceil(6.2,3.9),dev(rk3)]);
+  Cb('3x2.5','Каб 5',[dev(rk1),ceil(6.6,3.9),ceil(6.6,1.6),dev(rk3)]);
+  Cb('3x2.5','Каб 6',[dev(rk1),ceil(7.2,3.25),ceil(4.0,3.25),ceil(4.0,4.4),dev(rk4)]);
+  Cb('3x1.5','Каб 7',[dev(rk1),ceil(7.25,3.35),ceil(3.9,3.35),ceil(3.9,4.4),dev(rk4)]);
+  // living room
+  Cb('3x2.5','Каб 8',[dev(rk2),ceil(1.2,1.4),wall(1.2,0.05,2.6),dev(k1)]);
+  Cb('3x2.5','Каб 9',[dev(rk2),ceil(3.5,1.4),wall(3.5,0.05,2.6),dev(k2)]);
+  Cb('3x2.5','Каб 10',[dev(rk2),ceil(0.4,1.4),ceil(0.4,2.2),wall(0.05,2.2,2.6),dev(k3)]);
   Cb('3x1.5','Каб 11',[dev(rk2),dev(lLiv)]);
-  Cb('3x1.5','Каб 12',[dev(rk2),ceil(4.5,1.4),wall(4.5,1.4,2.6),wall(4.5,2.8,2.6),dev(swLiv)]);
+  Cb('3x1.5','Каб 12',[dev(rk2),ceil(4.2,1.4),ceil(4.2,2.8),wall(4.45,2.8,2.6),dev(swLiv)]);
   // kitchen
-  Cb('3x2.5','Каб 13',[dev(rk3),ceil(5.2,1.6),wall(5.2,0,2.6),dev(kk1)]);
-  Cb('3x2.5','Каб 14',[dev(rk3),ceil(6.4,1.6),wall(6.4,0,2.6),dev(kk2)]);
-  Cb('3x6','Каб печка',[dev(panel),wall(8,4.3,2.3),wall(8,3.5,2.3),wall(8,0,2.3),wall(7.4,0,2.3),dev(kp)]);
+  Cb('3x2.5','Каб 13',[dev(rk3),ceil(5.2,1.6),wall(5.2,0.05,2.6),dev(kk1)]);
+  Cb('3x2.5','Каб 14',[dev(rk3),ceil(6.4,1.6),wall(6.4,0.05,2.6),dev(kk2)]);
   Cb('3x1.5','Каб 15',[dev(rk3),dev(lKit)]);
-  Cb('3x1.5','Каб 16',[dev(rk3),ceil(4.5,1.6),wall(4.5,1.6,2.6),wall(4.5,0.6,2.6),dev(swKit)]);
+  Cb('3x1.5','Каб 16',[dev(rk3),ceil(4.8,1.6),ceil(4.8,0.6),wall(4.55,0.6,2.6),dev(swKit)]);
   // bedroom
-  Cb('3x2.5','Каб 17',[dev(rk4),ceil(0,4.6),wall(0,4.6,2.6),dev(k4)]);
-  Cb('3x2.5','Каб 18',[dev(rk4),ceil(3.6,4.6),wall(3.6,6,2.6),dev(k5)]);
+  Cb('3x2.5','Каб 17',[dev(rk4),ceil(0.4,4.4),ceil(0.4,4.6),wall(0.05,4.6,2.6),dev(k4)]);
+  Cb('3x2.5','Каб 18',[dev(rk4),ceil(3.6,4.4),ceil(3.6,5.6),wall(3.6,5.95,2.6),dev(k5)]);
   Cb('3x1.5','Каб 19',[dev(rk4),dev(lBed)]);
-  Cb('3x1.5','Каб 20',[dev(rk4),ceil(4.5,4.6),wall(4.5,4.6,2.6),wall(4.5,3.6,2.6),dev(swBed)]);
-  // hall & bath
+  Cb('3x1.5','Каб 20',[dev(rk4),ceil(4.2,4.4),ceil(4.2,3.6),wall(4.45,3.6,2.6),dev(swBed)]);
+  // hall and bathroom
   Cb('3x1.5','Каб 21',[dev(rk1),dev(lHall)]);
-  Cb('3x1.5','Каб 22',[dev(rk1),ceil(8,4.8),wall(8,4.8,2.6),wall(8,5.6,2.6),dev(swHall)]);
-  Cb('3x1.5','Каб 23',[dev(rk1),ceil(6.3,4.8),wall(6.3,4.8,2.6),dev(lBath)]);
-  Cb('3x4','Каб бойлер',[dev(panel),wall(8,4.3,2.3),wall(8,3.5,2.3),wall(6.3,3.5,2.3),wall(4.5,3.5,2.3),wall(4.5,4.2,2.3),dev(kb)]);
+  Cb('3x1.5','Каб 22',[dev(rk1),ceil(7.6,3.9),ceil(7.6,5.6),wall(7.95,5.6,2.6),dev(swHall)]);
+  Cb('3x1.5','Каб 23',[dev(rk1),ceil(6.6,4.1),ceil(5.4,4.1),dev(lBath)]);
+  st.seq.cable=st.cables.length;
   S=saved; return st;
 }
 
-// ---------- boot ----------
+// =====================================================================
+// boot
+// =====================================================================
 buildRail();
+loadPref();
 if(!load()) S=sampleProject();
-new ResizeObserver(()=>{ resize(); }).observe(cv);
-window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{ render(); renderSide(); });
-new MutationObserver(()=>{ render(); renderSide(); }).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
-resize(); requestAnimationFrame(()=>{ fitView(); updateUI(); renderSide(); });
+const has3D=init3D();
+if(!has3D) viewMode='2d';
+new ResizeObserver(()=>{ if(viewMode==='2d') resize2D(); }).observe(cv);
+const onTheme=()=>{ readColors(); if(T3.ok) applyTheme3(); draw2D(); renderSide(); };
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',onTheme);
+new MutationObserver(onTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+setView(viewMode);
+requestAnimationFrame(()=>{ resize3D(); resize2D(); fitBtn(false); if(viewMode==='2d') setView._fitted2=true; renderSide(); updateUI(); });
 </script>
 </body>
 </html>
